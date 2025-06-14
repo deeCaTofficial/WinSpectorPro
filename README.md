@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/user-attachments/assets/d1c32c25-1e35-4303-9d8a-98de5b9d5c4b" alt="WinSpector Pro Logo" width="150"/>
+  <img src="./assets/logo.png" alt="WinSpector Pro Logo" width="150"/>
 </p>
 
 <h1 align="center">WinSpector Pro</h1>
