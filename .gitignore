@@ -1,0 +1,120 @@
+# ===================================================================
+# Gitignore для проекта WinSpector Pro
+# Версия 2.2 - Улучшенная и более строгая
+# ===================================================================
+
+# 1. Секреты и локальная конфигурация
+# Файлы с ключами API, паролями и настройками окружения.
+# НИКОГДА НЕ ДОБАВЛЯЙТЕ ИХ В РЕПОЗИТОРИЙ!
+.env
+.env.*
+!.env.example
+*.env
+env/
+secrets.*
+*.secrets
+
+
+# 2. Виртуальные окружения Python
+# Каждый разработчик создает свое окружение.
+/venv/
+/.venv/
+/env.bak/
+/env/
+/pyvenv.cfg
+pip-selfcheck.json
+
+
+# 3. Кэш и артефакты Python
+# Автоматически генерируемые файлы.
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+# Кэш pip
+.pip-cache/
+
+
+# 4. Артефакты сборки, дистрибуции и установки
+# Папки и файлы, создаваемые PyInstaller, setuptools и т.д.
+/build/
+/dist/
+/site/
+/wheels/
+/*.egg-info/
+*.spec
+*.egg
+# Игнорировать .exe файлы только в корневой папке
+/*.exe
+
+
+# 5. Логи и данные приложения
+# Файлы, генерируемые самим приложением во время работы.
+/logs/
+/snapshots/
+*.log
+*.log.*
+# Файлы сессий или временные данные
+*.session
+*.tmp
+
+
+# 6. Инструменты разработки и тестирования
+# Кэш, отчеты и конфигурации инструментов.
+/.pytest_cache/
+/.mypy_cache/
+/.tox/
+.dmypy.json
+dmypy.json
+
+# Отчеты о покрытии
+/.coverage
+.coverage.*
+/htmlcov/
+/coverage.xml
+
+# Профайлинг и линтинг
+/.ruff_cache/
+*.prof
+*.prof.json
+nosetests.xml
+
+# Кэш Jupyter Notebook
+.ipynb_checkpoints
+
+# Зависимости Node.js (для pre-commit хуков и т.д.)
+node_modules/
+
+
+# 7. Файлы IDE и редакторов кода
+# Персональные настройки рабочего окружения.
+/.vscode/
+/.idea/
+# Локальная история VS Code
+/.history
+*.suo
+*.user
+*.sublime-*
+nbproject/
+
+
+# 8. Системный "мусор"
+# Файлы, создаваемые операционными системами.
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+.Spotlight-V100
+.Trashes
+
+# Linux
+*~
+.directory
+.Trash-*

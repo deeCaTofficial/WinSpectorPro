@@ -1,0 +1,144 @@
+/* ===================================================================
+ * WinSpector Pro Main Stylesheet
+ * Version: 1.0
+ * Theme: "Glassmorphism"
+ * =================================================================== */
+
+/* --- 1. Глобальные переменные и стили по умолчанию --- */
+* {
+    /* Цветовая палитра */
+    --main-bg-color: #1a1d21;
+    --glass-bg-color: rgba(44, 48, 56, 0.7);
+    --border-color: rgba(80, 160, 255, 0.5);
+    --primary-accent-color: #0078D4;
+    --primary-accent-hover: #108de0;
+    --primary-accent-pressed: #006ac1;
+    --text-color: #EAEAEA;
+    --text-secondary-color: #b0b0b0;
+    --disabled-color: #555555;
+    
+    /* Шрифты */
+    font-family: "Segoe UI", "Calibri", "Arial", sans-serif;
+    color: var(--text-color);
+}
+
+
+/* --- 2. Основное окно и контейнер --- */
+#GlassContainer {
+    background-color: var(--glass-bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 15px;
+    /* Это позволяет фону быть полупрозрачным */
+    backdrop-filter: blur(20px);
+}
+
+
+/* --- 3. Заголовки --- */
+#TitleLabel {
+    font-size: 32px;
+    font-weight: 600;
+    padding-top: 10px;
+}
+
+#SubtitleLabel {
+    font-size: 14px;
+    color: var(--text-secondary-color);
+    padding-bottom: 20px;
+}
+
+#ResultTitle {
+    font-size: 24px;
+    font-weight: 500;
+    padding-bottom: 15px;
+}
+
+
+/* --- 4. Кнопки --- */
+QPushButton {
+    background-color: var(--primary-accent-color);
+    color: white;
+    font-size: 14px;
+    font-weight: bold;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 25px;
+    min-width: 150px;
+    transition: background-color 0.3s ease;
+}
+
+QPushButton:hover {
+    background-color: var(--primary-accent-hover);
+}
+
+QPushButton:pressed {
+    background-color: var(--primary-accent-pressed);
+}
+
+QPushButton:disabled {
+    background-color: var(--disabled-color);
+    color: #999;
+}
+
+
+/* --- 5. Страница обработки (Processing Page) --- */
+#StatusLabel {
+    font-size: 16px;
+    color: var(--text-secondary-color);
+    padding-bottom: 10px;
+}
+
+QProgressBar {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    text-align: center;
+    color: var(--text-color);
+    background-color: transparent;
+    height: 20px;
+}
+
+QProgressBar::chunk {
+    background-color: qlineargradient(
+        x1: 0, y1: 0, x2: 1, y2: 0,
+        stop: 0 var(--primary-accent-color), 
+        stop: 1 var(--primary-accent-hover)
+    );
+    border-radius: 7px;
+    margin: 1px;
+}
+
+
+/* --- 6. Страница результатов (Results Page) --- */
+#ReportBrowser {
+    background-color: rgba(0, 0, 0, 0.2);
+    border: 1px solid #444;
+    border-radius: 8px;
+    color: var(--text-color);
+    font-size: 14px;
+}
+
+
+/* --- 7. Стилизация полос прокрутки (Scrollbars) --- */
+QScrollBar:vertical {
+    border: none;
+    background: transparent;
+    width: 10px;
+    margin: 0px 0px 0px 0px;
+}
+
+QScrollBar::handle:vertical {
+    background: #555;
+    border-radius: 5px;
+    min-height: 20px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: var(--primary-accent-hover);
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+    background: none;
+}

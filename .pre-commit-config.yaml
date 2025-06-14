@@ -1,0 +1,19 @@
+# Конфигурация для pre-commit.
+# Определяет, какие проверки (хуки) будут запускаться перед коммитом.
+
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+    -   id: check-yaml           # Проверяет синтаксис YAML файлов
+    -   id: check-toml           # Проверяет синтаксис TOML файлов
+    -   id: end-of-file-fixer    # Гарантирует, что файлы заканчиваются пустой строкой
+    -   id: trailing-whitespace  # Удаляет лишние пробелы в конце строк
+
+-   repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.1
+    hooks:
+    # Запускает `ruff format` для автоматического форматирования кода
+    -   id: ruff-format
+    # Запускает `ruff --fix` для автоматического исправления ошибок
+    -   id: ruff

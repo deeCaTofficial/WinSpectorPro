@@ -1,0 +1,9 @@
+# Main dependencies for WinSpector Pro
+qasync
+psutil
+pywin32
+wmi
+google-generativeai
+pyyaml
+python-dotenv
+async-lru

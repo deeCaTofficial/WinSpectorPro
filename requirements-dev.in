@@ -1,0 +1,10 @@
+# Development, testing, and build dependencies
+-r requirements.in
+pytest
+pytest-asyncio
+pytest-qt
+pytest-cov
+pytest-mock
+pyinstaller
+ruff
+pre-commit
