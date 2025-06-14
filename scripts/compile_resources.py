@@ -1,58 +1,54 @@
 # scripts/compile_resources.py
-import os
 import subprocess
 import sys
 from pathlib import Path
 
+# --- КОНФИГУРАЦИЯ ---
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 RESOURCES_DIR = PROJECT_ROOT / "src" / "winspector" / "resources"
-QRC_FILES = [
-    (RESOURCES_DIR / "assets.qrc", RESOURCES_DIR / "assets_rc.py")
-]
+QRC_FILE = RESOURCES_DIR / "assets.qrc"
+OUTPUT_FILE = RESOURCES_DIR / "assets_rc.py"
 
-def find_rcc_tool() -> Path:
-    scripts_dir = Path(sys.executable).parent
-    rcc_path = scripts_dir / "pyside6-rcc.exe"
-    if not rcc_path.exists():
-        raise FileNotFoundError(
-            f"Не удалось найти 'pyside6-rcc.exe' по пути: {rcc_path}\n"
-            f"Пожалуйста, убедитесь, что 'pyside6' установлен: pip install pyside6"
-        )
-    return rcc_path
+# Точный путь к компилятору, который мы нашли.
+RCC_PATH = PROJECT_ROOT / "venv/Lib/site-packages/qt6_applications/Qt/bin/rcc.exe"
 
-def compile_resources():
-    print("🚀 Компиляция файлов ресурсов Qt (.qrc) с помощью pyside6-rcc...")
-    try:
-        rcc_path = find_rcc_tool()
-        print(f"   - Используется утилита: {rcc_path}")
-    except FileNotFoundError as e:
-        print(f"❌ Ошибка: {e}")
+def main():
+    """Компилирует .qrc и автоматически исправляет сгенерированный файл."""
+    print("🚀 Компиляция файлов ресурсов Qt (.qrc)...")
+
+    if not RCC_PATH.exists():
+        print(f"❌ Критическая ошибка: Компилятор не найден по пути: {RCC_PATH}")
+        sys.exit(1)
+        
+    if not QRC_FILE.exists():
+        print(f"❌ Ошибка: Файл ресурсов не найден по пути: {QRC_FILE}")
         sys.exit(1)
 
-    for qrc_file, output_file in QRC_FILES:
-        if not qrc_file.exists():
-            print(f"⚠️  Пропуск: Файл ресурсов не найден: {qrc_file}")
-            continue
-        print(f"   - Компиляция: {qrc_file.name} -> {output_file.name}")
+    print(f"   - Используется компилятор: {RCC_PATH}")
+    
+    command = [ str(RCC_PATH), str(QRC_FILE), "-g", "python", "-o", str(OUTPUT_FILE) ]
+
+    try:
+        subprocess.run(command, check=True)
+        print("✅ Компиляция ресурсов успешно завершена.")
         
-        # --- ГЛАВНОЕ ИЗМЕНЕНИЕ ---
-        # Мы формируем команду с абсолютными путями
-        command = [
-            str(rcc_path),
-            str(qrc_file.resolve()), # Абсолютный путь к QRC
-            "-o",
-            str(output_file.resolve()) # Абсолютный путь к PY
-        ]
-        
-        try:
-            # Запускаем из корневой папки проекта
-            subprocess.run(command, check=True, shell=True, cwd=PROJECT_ROOT)
-        except subprocess.CalledProcessError as e:
-            print(f"❌ Ошибка при компиляции {qrc_file.name}:")
-            print(f"   Команда завершилась с кодом ошибки: {e.returncode}")
-            sys.exit(1)
-            
-    print("✅ Компиляция ресурсов завершена.")
+        # --- Автоматическое исправление ---
+        print("   - Автоматическое исправление импорта...")
+        with open(OUTPUT_FILE, 'r+', encoding='utf-8', errors='ignore') as f:
+            content = f.read()
+            # Заменяем импорт PySide6 на PyQt6
+            new_content = content.replace("from PySide6 import QtCore", "from PyQt6 import QtCore")
+            if new_content != content:
+                f.seek(0)
+                f.write(new_content)
+                f.truncate()
+                print("   - ✅ Импорт исправлен на PyQt6.")
+            else:
+                print("   - ✅ Исправление не потребовалось, импорт уже корректен.")
+
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        print("\n❌ КРИТИЧЕСКАЯ ОШИБКА КОМПИЛЯЦИИ РЕСУРСОВ")
+        sys.exit(1)
 
 if __name__ == "__main__":
-    compile_resources()
+    main()

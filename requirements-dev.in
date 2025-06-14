@@ -8,3 +8,4 @@ pytest-mock
 pyinstaller
 ruff
 pre-commit
+pyqt6-tools  # <--- ДОБАВЛЕНО
