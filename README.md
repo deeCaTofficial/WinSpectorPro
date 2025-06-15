@@ -11,8 +11,7 @@
 </p>
 
 <p align="center">
-    <a href="https://github.com/deeCaTofficial/WinSpectorPro/releases/latest"><img src="https://img.shields.io/github/downloads/deeCaTofficial/WinSpectorPro/latest/total?label=скачиваний" alt="Downloads"></a>
-    <a href="https://github.com/deeCaTofficial/WinSpectorPro/releases/latest"><img src="https://img.shields.io/github/v/release/deeCaTofficial/WinSpectorPro?display_name=tag&include_prereleases" alt="Latest Release"></a>
+    <a href="https://github.com/deeCaTofficial/WinSpectorPro/releases/latest"><img src="https://img.shields.io/github/release/deeCaTofficial/WinSpectorPro.svg?label=последний%20релиз" alt="Latest Release"></a>
     <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python Version">
     <a href="https://github.com/deeCaTofficial/WinSpectorPro/blob/main/LICENSE"><img src="https://img.shields.io/github/license/deeCaTofficial/WinSpectorPro" alt="License"></a>
     <img src="https://img.shields.io/badge/code%20style-ruff-black.svg" alt="Code style: ruff">
