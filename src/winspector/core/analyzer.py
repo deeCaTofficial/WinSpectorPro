@@ -93,29 +93,49 @@ class WinSpectorCore:
         try:
             # --- Этап 1: Подготовка и профилирование ---
             progress_callback(5, "Создание точки восстановления...")
-            await self.windows_optimizer.create_restore_point()
+            
+            # Запускаем блокирующую функцию создания точки восстановления в отдельном потоке,
+            # чтобы не заморозить асинхронный цикл.
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(
+                None, # Используем стандартный ThreadPoolExecutor
+                self.windows_optimizer.create_restore_point
+            )
+            
+            logger.info("Точка восстановления успешно создана.")
+            progress_callback(10, "Точка восстановления создана.")
 
             if is_cancelled(): return "Операция отменена."
             
             progress_callback(15, "Анализ вашего стиля работы...")
+            # get_system_profile содержит блокирующие вызовы WMI, выполняем в потоке
+            # БЫЛО НЕПРАВИЛЬНО:
+            # system_profile_data = await asyncio.to_thread(self.user_profiler.get_system_profile)
+
+            # СТАЛО ПРАВИЛЬНО:
             system_profile_data = await self.user_profiler.get_system_profile()
             
             if is_cancelled(): return "Операция отменена."
 
-            # Используем AICommunicator для определения профиля
+            # Дальнейший код остается без изменений
             user_profile = await self.ai_communicator.determine_user_profile(
-                system_profile_data, self.knowledge_base.get('user_profiler_config', {})
+                system_profile_data,
+                self.knowledge_base.get('user_profiler_config', {})
             )
             logger.info(f"ИИ определил профиль пользователя как '{user_profile}'.")
             progress_callback(25, f"Обнаружен профиль: '{user_profile}'. Готовимся к глубокому анализу.")
 
             # --- Этап 2: Глубокий сбор данных ---
-            if is_cancelled(): return "Операция отменена."
             progress_callback(30, "Сбор данных о компонентах системы...")
             
-            components_task = self.windows_optimizer.get_system_components()
-            junk_files_task = self.smart_cleaner.find_junk_files_deep()
-            system_components, junk_files_report = await asyncio.gather(components_task, junk_files_task)
+            # get_system_components и find_junk_files_deep - это корутины, 
+            # их нужно запускать как задачи, а не через to_thread.
+            components_task = asyncio.create_task(self.windows_optimizer.get_system_components())
+            junk_files_task = asyncio.create_task(self.smart_cleaner.find_junk_files_deep())
+            
+            system_components, junk_files_report = await asyncio.gather(
+                components_task, junk_files_task
+            )
             
             logger.info(f"Сбор данных завершен. Найдено служб: {len(system_components.get('services', []))}, "
                         f"UWP-приложений: {len(system_components.get('uwp_apps', []))}, "

@@ -9,6 +9,12 @@ import logging
 from typing import List, Dict, Any, Callable, Tuple
 from pathlib import Path
 import tempfile
+import subprocess
+from datetime import datetime, timedelta
+import os
+
+from concurrent.futures import ProcessPoolExecutor
+from ..wmi_workers import get_services_worker
 
 # Наследуемся от базового класса для безопасной работы с WMI
 from .wmi_base import WMIBase
@@ -16,7 +22,7 @@ from .wmi_base import WMIBase
 logger = logging.getLogger(__name__)
 
 
-class WindowsOptimizer(WMIBase):
+class WindowsOptimizer:
     """
     Модуль для выполнения низкоуровневых оптимизаций Windows.
     Отвечает за сбор данных о компонентах и выполнение плана деблоатинга.
@@ -26,16 +32,17 @@ class WindowsOptimizer(WMIBase):
         logger.info("Инициализация WindowsOptimizer (Advanced)...")
 
     async def get_system_components(self) -> Dict[str, List[Dict]]:
-        """
-        Асинхронно собирает информацию о службах и UWP-приложениях.
-        """
+        """Собирает компоненты, запуская WMI в отдельном процессе."""
         logger.info("Начало сбора данных о компонентах системы (службы, UWP).")
         
-        # Запускаем сбор данных параллельно
-        services_task = asyncio.to_thread(self._collect_services)
-        apps_task = self._collect_uwp_apps()
-        
-        services, apps = await asyncio.gather(services_task, apps_task, return_exceptions=True)
+        loop = asyncio.get_running_loop()
+        with ProcessPoolExecutor() as pool:
+            services_task = loop.run_in_executor(pool, get_services_worker)
+            apps_task = self._collect_uwp_apps()
+            
+            services_result, apps = await asyncio.gather(services_task, apps_task)
+
+        services = services_result.get("services", [])
         
         # Обрабатываем возможные ошибки
         if isinstance(services, Exception):
@@ -78,20 +85,23 @@ class WindowsOptimizer(WMIBase):
             'Select-Object Name, PackageFullName, IsFramework | '
             'ConvertTo-Json -Compress"'
         )
-        proc = await asyncio.create_subprocess_shell(
-            command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-        )
-        stdout, stderr = await proc.communicate()
         
-        if proc.returncode != 0:
-            logger.error(f"Ошибка при сборе UWP-приложений: {stderr.decode('cp866', 'ignore')}")
+        # Запускаем блокирующий вызов в отдельном потоке
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(
+            None,  # Используем стандартный ThreadPoolExecutor
+            lambda: subprocess.run(command, capture_output=True, text=True, shell=True, check=False)
+        )
+
+        if result.returncode != 0:
+            logger.error(f"Ошибка при сборе UWP-приложений: {result.stderr}")
             return []
             
-        if not stdout:
+        if not result.stdout:
             return []
             
         try:
-            apps_data = json.loads(stdout)
+            apps_data = json.loads(result.stdout)
             # PowerShell может вернуть один объект или список
             if not isinstance(apps_data, list):
                 apps_data = [apps_data]
@@ -170,11 +180,15 @@ class WindowsOptimizer(WMIBase):
             progress_callback(75, f"Выполнение скрипта оптимизации...")
             command = f'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "{script_path}"'
             
-            proc = await asyncio.create_subprocess_shell(command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-            _, stderr = await proc.communicate()
+            # Запускаем блокирующий вызов в отдельном потоке
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(
+                None,
+                lambda: subprocess.run(command, capture_output=True, text=True, shell=True, check=False)
+            )
             
-            if proc.returncode != 0:
-                error_details = stderr.decode('cp866', 'ignore').strip()
+            if result.returncode != 0:
+                error_details = result.stderr.strip()
                 summary['errors'].append(f"Ошибка выполнения скрипта: {error_details}")
                 logger.error(f"Ошибка выполнения скрипта оптимизации: {error_details}")
             else:
@@ -193,19 +207,54 @@ class WindowsOptimizer(WMIBase):
         progress_callback(85, "Оптимизация системных компонентов завершена.")
         return summary
 
-    async def create_restore_point(self) -> None:
-        """Создает точку восстановления системы."""
-        logger.info("Попытка создания точки восстановления системы...")
-        command = (
-            'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command '
-            '"Checkpoint-Computer -Description \'WinSpector Pro Optimization\' -RestorePointType \'MODIFY_SETTINGS\'"'
-        )
-        proc = await asyncio.create_subprocess_shell(command, stderr=asyncio.subprocess.PIPE)
-        _, stderr = await proc.communicate()
+    def create_restore_point(self) -> None:
+        """
+        Создает точку восстановления системы через PowerShell.
+        Эта функция является блокирующей и должна вызываться в отдельном потоке.
+        """
+        system_drive = os.environ.get("SystemDrive", "C:")
+        description = f"WinSpector Pro Backup - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
         
-        if proc.returncode == 0:
-            logger.info("Точка восстановления успешно создана.")
-        else:
-            error_msg = f"Внимание: не удалось создать точку восстановления. {stderr.decode('cp866', 'ignore').strip()}"
-            logger.warning(error_msg)
-            # В будущем здесь можно спросить пользователя, хочет ли он продолжить без точки восстановления
+        logger.info("Формирование и запуск команды PowerShell для создания точки восстановления.")
+        
+        # Команда PowerShell для выполнения
+        command = (
+            f"powershell -ExecutionPolicy Bypass -NoProfile -Command "
+            f"\"Enable-ComputerRestore -Drive '{system_drive}'; "
+            f"Checkpoint-Computer -Description '{description}' -RestorePointType 'MODIFY_SETTINGS'\""
+        )
+
+        try:
+            # shell=True необходим для прямого выполнения сложных командных строк.
+            # capture_output=True, чтобы перехватить stdout/stderr.
+            # text=True, чтобы получить вывод в виде строки.
+            # Не указываем encoding, чтобы Python использовал системную кодировку по умолчанию.
+            result = subprocess.run(
+                command, 
+                shell=True, 
+                capture_output=True, 
+                text=True, 
+                check=False # Не выбрасывать исключение при ненулевом коде возврата
+            )
+
+            if result.returncode == 0:
+                logger.info("Команда создания точки восстановления успешно выполнена.")
+            else:
+                # PowerShell может выводить ошибки в stderr, даже если операция частично удалась
+                error_output = result.stderr.strip()
+                if "A new system restore point could not be created" in error_output or "не удалось создать" in error_output.lower():
+                     logger.error(f"Не удалось создать точку восстановления. Ошибка PowerShell: {error_output}")
+                     raise RuntimeError(f"Не удалось создать точку восстановления: {error_output}")
+                else:
+                    logger.warning(f"Команда создания точки восстановления завершилась с кодом {result.returncode}, но, возможно, успешно. "
+                                   f"Вывод: {error_output or result.stdout.strip()}")
+
+        except FileNotFoundError:
+            logger.error("Не удалось найти PowerShell. Убедитесь, что он установлен и доступен в PATH.")
+            raise
+        except Exception as e:
+            logger.error(f"Произошла ошибка при создании точки восстановления: {e}", exc_info=True)
+            raise
+
+    async def clear_temp_files(self) -> int:
+        """Асинхронно очищает временные файлы и папки."""

@@ -107,12 +107,12 @@ VSVersionInfo(
         u'040904B0',
         [StringStruct(u'CompanyName', u'CLC corporation'),
         StringStruct(u'FileDescription', u'WinSpector Pro - AI-Powered Windows Optimizer'),
-        StringStruct(u'FileVersion', u'{APP_VERSION}'),
+        StringStruct(u'FileVersion', u'{APP_VERSION}'), # <-- Берет новую версию
         StringStruct(u'InternalName', u'{APP_NAME}'),
         StringStruct(u'LegalCopyright', u'© CLC corporation. All rights reserved.'),
         StringStruct(u'OriginalFilename', u'{APP_NAME}.exe'),
         StringStruct(u'ProductName', u'WinSpector Pro'),
-        StringStruct(u'ProductVersion', u'{APP_VERSION}')])
+        StringStruct(u'ProductVersion', u'{APP_VERSION}')]) # <-- Берет новую версию
       ]), 
     VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
   ]

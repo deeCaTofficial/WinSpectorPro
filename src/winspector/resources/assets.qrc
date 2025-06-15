@@ -3,4 +3,7 @@
   <qresource prefix="/">
     <file alias="styles/main.qss">../resources/styles/main.qss</file>
   </qresource>
+    <qresource prefix="icons">
+    <file>../../../assets/rocket.png</file>
+  </qresource>
 </RCC>

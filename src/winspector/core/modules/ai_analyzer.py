@@ -38,7 +38,7 @@ class AIAnalyzer:
             genai.configure(api_key=api_key)
             genai._configured = True # Устанавливаем флаг, чтобы избежать повторной конфигурации
 
-        self.model = genai.GenerativeModel('gemini-1.5-flash')
+        self.model = genai.GenerativeModel('gemini-2.0-flash')
         self._ping_api()
         logger.info("AIAnalyzer успешно инициализирован и API доступен.")
 
@@ -219,18 +219,17 @@ class AIAnalyzer:
     async def generate_distillation_plan(self, system_data: Dict, profile: str, kb: Dict) -> Dict:
         """Генерирует и валидирует план оптимизации."""
         prompt = self._create_plan_prompt(system_data, profile, kb)
-        response_text = await self._get_response_with_cache(prompt, "generate_distillation_plan")
+        response_text = await self._get_response_with_cache(prompt, "generate_distillation_plan", use_cache=False)
         
         try:
             plan = self._extract_json_from_response(response_text)
-            # Теперь _validate_plan не падает, а возвращает очищенный план
             safe_plan = self._validate_plan(plan, kb) 
             logger.debug("Получен и валидирован безопасный план от ИИ.")
             return safe_plan
-        except (json.JSONDecodeError, ValueError) as e:
-            logger.error(f"Не удалось распарсить или валидировать план от ИИ: {e}\nОтвет ИИ: {response_text}")
-            # В случае ошибки возвращаем абсолютно пустой план
-            return {"action_plan": [], "cleanup_plan": {}}
+        except ValueError as e: # Ловим конкретную ошибку от _extract_json_from_response
+            logger.error(f"Не удалось распарсить или валидировать план от ИИ: {e}\nОтвет ИИ: {response_text}", exc_info=True)
+            # Выбрасываем новое, более понятное исключение, которое поймает GUI
+            raise RuntimeError("Не удалось получить корректный план от ИИ. Ответ был поврежден или невалиден.") from e
 
     def _validate_plan(self, plan: Dict, kb: Dict) -> Dict:
         """

@@ -1,142 +1,184 @@
 /* ===================================================================
- * WinSpector Pro Main Stylesheet
- * Version: 1.0
- * Theme: "Glassmorphism"
+ * WinSpector Pro Main Stylesheet - v1.4 (Qt-Compatible)
  * =================================================================== */
 
-/* --- 1. Глобальные переменные и стили по умолчанию --- */
-* {
-    /* Цветовая палитра */
-    --main-bg-color: #1a1d21;
-    --glass-bg-color: rgba(44, 48, 56, 0.7);
-    --border-color: rgba(80, 160, 255, 0.5);
-    --primary-accent-color: #0078D4;
-    --primary-accent-hover: #108de0;
-    --primary-accent-pressed: #006ac1;
-    --text-color: #EAEAEA;
-    --text-secondary-color: #b0b0b0;
-    --disabled-color: #555555;
-    
-    /* Шрифты */
-    font-family: "Segoe UI", "Calibri", "Arial", sans-serif;
-    color: var(--text-color);
+/* ---------------------------------
+ * 1. Основные контейнеры
+ * --------------------------------- */
+ 
+QMainWindow {
+    background: transparent;
 }
 
+QToolTip {
+    color: #c8d6e5;
+    background-color: #2b3342;
+    border: 1px solid #4a5568;
+    border-radius: 4px;
+    padding: 5px;
+}
 
-/* --- 2. Основное окно и контейнер --- */
+/* Стеклянный контейнер с эффектом размытия фона */
 #GlassContainer {
-    background-color: var(--glass-bg-color);
-    border: 1px solid var(--border-color);
-    border-radius: 15px;
-    /* Это позволяет фону быть полупрозрачным */
-    backdrop-filter: blur(20px);
+    background-color: rgba(30, 35, 45, 0.7); /* Полупрозрачный фон */
+    border-radius: 15px; /* Скругленные углы по умолчанию */
+    /* Убираем рамку полностью, так как она является источником артефактов.
+       Защита от системного свечения обеспечивается через NoFocus в коде. */
+    border: none;
+    outline: none; /* Убираем контур фокуса */
 }
 
+/* Когда окно развернуто, убираем скругление углов */
+#GlassContainer[maximized="true"] {
+    border-radius: 0px;
+}
 
-/* --- 3. Заголовки --- */
+TitleBar {
+    background: transparent;
+}
+
+/* -----------------------------------------------------------
+ * 2. Страницы и их фон
+ * ----------------------------------------------------------- */
+
+/* Делаем фон всех страниц внутри QStackedWidget прозрачным,
+   чтобы был виден фон #GlassContainer. */
+#HomePageWrapper, #ProcessingPage, #ResultsPage {
+    background: transparent;
+}
+
+/* ---------------------------------
+ * 3. Типографика
+ * --------------------------------- */
+
 #TitleLabel {
     font-size: 32px;
     font-weight: 600;
     padding-top: 10px;
+    color: white;
 }
 
 #SubtitleLabel {
     font-size: 14px;
-    color: var(--text-secondary-color);
+    color: #b0b0b0;
     padding-bottom: 20px;
+}
+
+#StatusLabel {
+    font-size: 20px;
+    font-weight: 500;
+    color: #FFFFFF;
+    padding-bottom: 15px;
 }
 
 #ResultTitle {
     font-size: 24px;
-    font-weight: 500;
-    padding-bottom: 15px;
+    font-weight: 600;
+    color: #EAEAEA;
+    margin-bottom: 10px;
 }
 
+/* ---------------------------------
+ * 4. Элементы управления
+ * --------------------------------- */
 
-/* --- 4. Кнопки --- */
 QPushButton {
-    background-color: var(--primary-accent-color);
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #0078D4, stop:1 #005a9e);
     color: white;
     font-size: 14px;
     font-weight: bold;
-    border: none;
+    border: 1px solid #0078D4;
     border-radius: 8px;
     padding: 10px 25px;
     min-width: 150px;
-    transition: background-color 0.3s ease;
 }
 
 QPushButton:hover {
-    background-color: var(--primary-accent-hover);
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #108de0, stop:1 #006ac1);
+    border-color: #108de0;
 }
 
 QPushButton:pressed {
-    background-color: var(--primary-accent-pressed);
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #005a9e, stop:1 #004b8e);
+    border-color: #005a9e;
 }
 
 QPushButton:disabled {
-    background-color: var(--disabled-color);
-    color: #999;
+    background-color: #555555;
+    border-color: #666666;
+    color: #999999;
 }
 
+#CancelButton {
+    /* Очень темный фон, чтобы кнопка была заметна, но не отвлекала */
+    background-color: qradialgradient(cx:0.5, cy:0.5, radius:0.9, fx:0.5, fy:0.5, stop:0 rgba(40, 50, 65, 0.6), stop:1 rgba(30, 35, 45, 0.8));
+    color: #a0a0a0;
+    border: 1px solid #2a3341;
+}
 
-/* --- 5. Страница обработки (Processing Page) --- */
-#StatusLabel {
-    font-size: 16px;
-    color: var(--text-secondary-color);
-    padding-bottom: 10px;
+#CancelButton:hover {
+    /* Эффект свечения при наведении, в стиле главной кнопки */
+    background-color: qradialgradient(cx:0.5, cy:0.5, radius:0.9, fx:0.5, fy:0.5, stop:0 rgba(30, 144, 255, 0.5), stop:1 rgba(30, 35, 45, 0.8));
+    color: white;
+    border: 1px solid #1E90FF;
+}
+
+#CancelButton:pressed {
+    /* Более интенсивное свечение при нажатии */
+    background-color: qradialgradient(cx:0.5, cy:0.5, radius:0.9, fx:0.5, fy:0.5, stop:0 rgba(30, 144, 255, 0.6), stop:1 rgba(30, 35, 45, 0.9));
+    border-color: #0078D4;
 }
 
 QProgressBar {
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
+    border: 1px solid #2a3341;
+    border-radius: 6px;
     text-align: center;
-    color: var(--text-color);
-    background-color: transparent;
-    height: 20px;
+    background-color: rgba(0, 0, 0, 0.4);
+    height: 12px;
+    color: transparent;
 }
 
 QProgressBar::chunk {
+    border-radius: 5px;
     background-color: qlineargradient(
-        x1: 0, y1: 0, x2: 1, y2: 0,
-        stop: 0 var(--primary-accent-color), 
-        stop: 1 var(--primary-accent-hover)
+        x1:0, y1:0.5, x2:1, y2:0.5,
+        stop:0 #1E90FF, stop:1 #00BFFF
     );
-    border-radius: 7px;
-    margin: 1px;
 }
 
-
-/* --- 6. Страница результатов (Results Page) --- */
 #ReportBrowser {
-    background-color: rgba(0, 0, 0, 0.2);
+    background-color: rgba(0, 0, 0, 0.25);
     border: 1px solid #444;
     border-radius: 8px;
-    color: var(--text-color);
+    color: #EAEAEA;
     font-size: 14px;
+    padding: 10px;
 }
 
+/* ---------------------------------
+ * 5. Скроллбары
+ * --------------------------------- */
 
-/* --- 7. Стилизация полос прокрутки (Scrollbars) --- */
 QScrollBar:vertical {
     border: none;
     background: transparent;
     width: 10px;
-    margin: 0px 0px 0px 0px;
+    margin: 0;
 }
 
 QScrollBar::handle:vertical {
     background: #555;
     border-radius: 5px;
-    min-height: 20px;
+    min-height: 25px;
 }
 
 QScrollBar::handle:vertical:hover {
-    background: var(--primary-accent-hover);
+    background: #108de0;
 }
 
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
     height: 0px;
+    background: none;
 }
 
 QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {

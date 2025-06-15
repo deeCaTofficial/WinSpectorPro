@@ -27,7 +27,7 @@ class AIBase:
     # Статическая переменная для отслеживания статуса конфигурации
     _is_configured = False
 
-    def __init__(self, config: Dict[str, Any], model_name: str = 'gemini-1.5-flash'):
+    def __init__(self, config: Dict[str, Any], model_name: str = 'gemini-2.0-flash'):
         """
         Инициализирует базовый клиент для работы с ИИ.
 
@@ -101,7 +101,7 @@ class AIBase:
             generation_config = genai.types.GenerationConfig(
                 # Увеличиваем максимальное количество токенов в ответе.
                 # Для Gemini 1.5 Flash это значение может быть очень большим.
-                max_output_tokens=8192
+                max_output_tokens=65536
             )
             response = await self.model.generate_content_async(
                 prompt,

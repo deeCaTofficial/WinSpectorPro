@@ -13,6 +13,9 @@ import winreg
 from typing import Dict, Any, List, Set, Optional
 from pathlib import Path
 
+from concurrent.futures import ProcessPoolExecutor
+from ..wmi_workers import get_hardware_info_worker
+
 # Импортируем базовый класс для работы с WMI
 from .wmi_base import WMIBase
 
@@ -43,15 +46,18 @@ class UserProfiler(WMIBase):
         """
         logger.info("Начало сбора данных для профилирования системы.")
         
-        # Запускаем все задачи сбора данных параллельно
-        hardware_task = asyncio.to_thread(self._get_hardware_info)
-        software_task = asyncio.to_thread(self._get_installed_software_from_registry)
-        markers_task = asyncio.to_thread(self._scan_for_profile_markers)
-        
-        # Ожидаем завершения всех задач
-        hardware, software, markers = await asyncio.gather(
-            hardware_task, software_task, markers_task, return_exceptions=True
-        )
+        loop = asyncio.get_running_loop()
+        with ProcessPoolExecutor() as pool:
+            # Запускаем worker-функцию в отдельном процессе
+            hardware_task = loop.run_in_executor(pool, get_hardware_info_worker)
+            
+            # Задачи, не использующие WMI, можно запускать в потоках
+            software_task = asyncio.to_thread(self._get_installed_software_from_registry)
+            markers_task = asyncio.to_thread(self._scan_for_profile_markers)
+
+            hardware, software, markers = await asyncio.gather(
+                hardware_task, software_task, markers_task, return_exceptions=True
+            )
         
         # Обрабатываем возможные ошибки
         if isinstance(hardware, Exception):

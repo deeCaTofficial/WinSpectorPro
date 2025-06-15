@@ -15,6 +15,7 @@ import traceback
 from datetime import datetime
 from pathlib import Path  # Используем pathlib для надежной работы с путями
 from typing import Dict, NoReturn
+import multiprocessing
 
 # --- 1. Константы и флаги ---
 
@@ -93,12 +94,14 @@ def run_app() -> NoReturn:
             # Путь к папке логов лучше делать рядом с .exe, а не во временной папке
             exe_dir = Path(sys.executable).parent
             log_dir = exe_dir / 'logs'
+            assets_dir = exe_dir / 'assets'
         else:
             # Мы работаем из исходников .py
             # __file__ -> .../src/main.py -> .parent -> .../src/
             base_path = Path(__file__).parent.resolve()
             # Папка logs в корне проекта, на уровень выше папки 'src'
             log_dir = base_path.parent / 'logs'
+            assets_dir = base_path.parent / 'assets'
 
         # Добавляем корневую папку 'src' в системный путь, если работаем из исходников.
         # Это не нужно для .exe, так как PyInstaller сам управляет путями.
@@ -114,7 +117,8 @@ def run_app() -> NoReturn:
         # Создаем словарь с путями, который будет передан в основное приложение
         app_paths = {
             "base": base_path, # Путь для поиска данных (knowledge_base.yaml)
-            "logs": log_dir      # Путь для записи логов
+            "logs": log_dir,      # Путь для записи логов
+            "assets": assets_dir # Путь к ресурсам (иконки, и т.д.)
         }
         
         # Передаем управление и код выхода из приложения обратно в систему
@@ -134,8 +138,6 @@ def run_app() -> NoReturn:
         
         sys.exit(1)
 
-
 if __name__ == "__main__":
-    # Эта проверка гарантирует, что код будет выполнен только при запуске этого файла,
-    # а не при его импорте.
+    multiprocessing.freeze_support() # <-- ДОБАВИТЬ ЭТУ СТРОКУ
     run_app()

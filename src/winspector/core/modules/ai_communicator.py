@@ -23,7 +23,7 @@ class AICommunicator(AIBase):
     """
     def __init__(self, config: Dict[str, Any]):
         # Можно использовать другую, более быструю модель для коммуникаций, если нужно
-        super().__init__(config, model_name='gemini-1.5-flash')
+        super().__init__(config, model_name='gemini-2.0-flash')
 
     @staticmethod
     def _extract_json_from_response(text: str) -> Dict:
