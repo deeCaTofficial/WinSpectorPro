@@ -95,8 +95,11 @@ class MainWindow(QMainWindow):
         page = QWidget()
         page.setObjectName("HomePageWrapper")
         layout = QVBoxLayout(page)
+        
+        # --- ИЗМЕНЕНИЕ: Используем путь из app_paths ---
         rocket_icon_path = self.app_paths.get("assets") / "rocket.png"
         rocket_icon = QIcon(str(rocket_icon_path)) if rocket_icon_path.exists() else QIcon()
+        
         self.pulsing_button = PulsingButton(rocket_icon, text="")
         self.pulsing_button.setFixedSize(220, 220)
 

@@ -87,19 +87,13 @@ def run_app() -> NoReturn:
     try:
         # Определяем пути в зависимости от режима запуска
         if IS_FROZEN:
-            # Мы в .exe, собранном PyInstaller.
-            # Базовый путь - это временная папка, куда PyInstaller распаковал все.
-            # Файлы данных (как knowledge_base.yaml) будут лежать здесь же.
+            # --- ИЗМЕНЕНИЕ: Все пути теперь относительно base_path ---
             base_path = Path(sys._MEIPASS)
-            # Путь к папке логов лучше делать рядом с .exe, а не во временной папке
-            exe_dir = Path(sys.executable).parent
-            log_dir = exe_dir / 'logs'
-            assets_dir = exe_dir / 'assets'
+            log_dir = Path(sys.executable).parent / 'logs' # Логи оставляем рядом с .exe
+            assets_dir = base_path / 'assets' # Иконки теперь внутри .exe
         else:
-            # Мы работаем из исходников .py
-            # __file__ -> .../src/main.py -> .parent -> .../src/
+            # Для режима разработки ничего не меняется
             base_path = Path(__file__).parent.resolve()
-            # Папка logs в корне проекта, на уровень выше папки 'src'
             log_dir = base_path.parent / 'logs'
             assets_dir = base_path.parent / 'assets'
 

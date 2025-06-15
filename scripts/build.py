@@ -50,10 +50,16 @@ APP_VERSION = get_project_version()
 
 # 3. Файлы данных для включения в .exe
 # Формат: ("относительный/путь/к/файлу", "путь/назначения/внутри/exe")
-# Используем Path.as_posix() для универсальности путей
 DATA_TO_INCLUDE = [
+    # Системные данные (уже есть)
     (PROJECT_ROOT / "src/winspector/data/knowledge_base.yaml", "winspector/data"),
     (PROJECT_ROOT / "src/winspector/data/telemetry_domains.txt", "winspector/data"),
+    
+    # --- ИЗМЕНЕНИЕ: Добавляем папку со стилями ---
+    (PROJECT_ROOT / "src/winspector/resources/styles", "winspector/resources/styles"),
+    
+    # --- ИЗМЕНЕНИЕ: Добавляем папку с ассетами (иконки, картинки) ---
+    (PROJECT_ROOT / "assets", "assets"),
 ]
 
 # 4. Продвинутые опции PyInstaller

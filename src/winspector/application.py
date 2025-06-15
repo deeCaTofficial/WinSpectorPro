@@ -154,10 +154,12 @@ def main(app_paths: Dict[str, Path]) -> int:
     else:
         logger.warning(f"Файл стилей не найден: {qss_path}")
 
-    # Установка иконки
+    # Устанавливаем иконку приложения глобально из файла
+    # --- ИЗМЕНЕНИЕ: Используем путь из app_paths ---
     icon_path = app_paths.get("assets") / "app.ico"
     if icon_path.exists():
-        app.setWindowIcon(QIcon(str(icon_path)))
+        app_icon = QIcon(str(icon_path))
+        app.setWindowIcon(app_icon)
     else:
         logger.warning(f"Файл иконки не найден по пути: {icon_path}")
 
