@@ -1,0 +1,1825 @@
+- id: Svc_AdguardVPN
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  - gamer
+  description_ru: Служба Adguard VPN. Если вы не используете VPN постоянно, можно
+    установить режим запуска вручную для экономии ресурсов.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the service is accurate, and the recommendation
+      to set it to manual startup for resource saving is sound. The service will typically
+      start automatically when the Adguard VPN application is launched, so this is
+      a safe optimization for users who don't use the VPN constantly.
+- id: Svc_AMDUX
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  - gamer
+  description_ru: Служба программы улучшения пользовательского опыта AMD. Отвечает
+    за сбор анонимных данных. Отключение не повлияет на работу драйверов или производительность.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description and the impact of disabling the service
+      are accurate. It is safe to disable for users who wish to opt out of data collection.
+- id: Svc_BluetoothSupport
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  - gamer
+  description_ru: Службы поддержки Bluetooth (bthserv, BluetoothUserService). Если
+    вы не используете Bluetooth-устройства, эти службы можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The statement accurately identifies the core Bluetooth services
+      and provides a safe, conditional recommendation. Disabling these services will
+      indeed prevent all Bluetooth functionality, which is the intended outcome if
+      a user does not utilize Bluetooth devices.
+- id: Svc_ConnectedDevicesPlatform
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  - gamer
+  description_ru: Службы платформы подключенных устройств (CDPSvc, CDPUserSvc). Отвечают
+    за взаимодействие с другими устройствами (например, 'Продолжить на ПК'). Если
+    вы не используете эти функции, можно установить режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: The description of the Connected Devices Platform service
+      (CDPSvc, CDPUserSvc) and its function for cross-device experiences (like 'Continue
+      on PC', Nearby Sharing, Timeline) is accurate. The recommendation to set its
+      startup type to 'Manual' if these features are not used is a safe and reasonable
+      optimization. It allows the service to start on demand if a feature requires
+      it, without running constantly in the background.
+- id: Svc_DiscordFix
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  - gamer
+  description_ru: Пользовательская служба для исправления Discord. Если Discord работает
+    стабильно без нее, можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: The service 'Svc_DiscordFix' is not a standard Windows service;
+      it likely originates from a third-party application or user-created script designed
+      to interact with Discord. The description of it being a 'user service' is consistent
+      with this. The recommendation to disable it if Discord functions correctly without
+      it is safe and appropriate for a non-system-critical, application-specific service,
+      as it allows the user to remove potentially unnecessary software without risking
+      core system stability.
+- id: Svc_DeliveryOptimization
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  - gamer
+  description_ru: Служба оптимизации доставки. Позволяет загружать обновления Windows
+    и приложений с других ПК в вашей локальной сети или в Интернете. Отключение может
+    ускорить работу сети, но обновления будут загружаться только с серверов Microsoft.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the Delivery Optimization service and
+      its function is accurate. Disabling it is safe and will indeed cause updates
+      to be downloaded directly from Microsoft servers. The claim that it 'may speed
+      up network operation' is plausible, as it stops the service from using upload
+      bandwidth to share updates with other PCs, which can be beneficial on connections
+      with limited upload capacity or metered usage.
+- id: Svc_DataUsage
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Служба использования данных. Отвечает за мониторинг использования
+    сетевых данных. Если вам не нужен этот функционал, можно установить режим запуска
+    вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.9
+    verification_comment: The description of the service's function (monitoring network
+      data usage) is accurate. The actual service name is typically 'DusmSvc' (Data
+      Usage Service), not 'Svc_DataUsage', but the intent is clear. Setting this service
+      to manual is a safe recommendation for users who do not need the data usage
+      monitoring feature, as it does not impact core system functionality or network
+      connectivity.
+- id: Svc_EABackground
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  - gamer
+  description_ru: Фоновая служба EA Desktop. Если вы не используете EA Desktop часто,
+    можно отключить для экономии ресурсов.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: The service name and description are consistent with EA
+      Desktop's background services. Disabling it will indeed save resources, and
+      it is safe to do so for users who don't frequently use the EA Desktop application,
+      though it might affect background updates or quick launch features.
+- id: Svc_EpicGamesUpdater
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  - gamer
+  description_ru: Служба обновления Epic Games Launcher. Можно отключить, если вы
+    не хотите автоматических обновлений Epic Games Launcher.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: The description of the service's function and the consequence
+      of disabling it are accurate. Disabling an updater service for a non-critical
+      application like a game launcher is generally safe and only affects its update
+      behavior.
+- id: Svc_NVIDIAFrameView
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  - gamer
+  description_ru: Служба NVIDIA FrameView SDK. Если вы не используете инструменты
+    FrameView, можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the service is accurate. Disabling it
+      is safe and reasonable for users who do not utilize NVIDIA FrameView SDK tools
+      for performance monitoring.
+- id: Svc_HideMeVPN
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  - gamer
+  description_ru: Служба hide.me VPN. Если вы не используете VPN постоянно, можно
+    установить режим запуска вручную для экономии ресурсов.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description accurately identifies the service. Setting
+      a non-essential application service to manual startup is a valid method to conserve
+      resources, as it prevents the service from running in the background when not
+      actively in use. This is a safe and reasonable recommendation for users who
+      do not require constant VPN connectivity.
+- id: Svc_LanmanServer
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Служба сервера. Отвечает за общий доступ к файлам и принтерам. Если
+    вы не делитесь файлами или принтерами в сети, можно установить режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the service's function is accurate. The
+      programmatic name of the service is `LanmanServer`, but 'Svc_LanmanServer' clearly
+      refers to it. Setting the startup type to 'Manual' is a safe and reasonable
+      optimization for users who do not utilize file or printer sharing features,
+      as the service will only start when needed.
+- id: Svc_LGHUBUpdater
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  - gamer
+  description_ru: Служба обновления Logitech G HUB. Можно установить режим запуска
+    вручную, чтобы Logitech G HUB обновлялся при запуске или по запросу.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.9
+    verification_comment: The service 'Svc_LGHUBUpdater' is indeed the Logitech G
+      HUB update service. Setting it to manual startup is a safe and common practice
+      to control when updates occur. While the service itself won't start automatically
+      with Windows, the Logitech G HUB application, if configured to run on startup,
+      may trigger the service to check for updates, or it will be triggered when updates
+      are manually initiated within the application.
+- id: Svc_LogitechLampArray
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  - gamer
+  description_ru: Служба Logitech LampArray. Отвечает за управление подсветкой периферийных
+    устройств Logitech. Если вы не используете эти функции, можно установить режим
+    запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: The description of the service's function is accurate, relating
+      to Logitech peripheral lighting. Setting it to manual startup is a safe and
+      reasonable recommendation for users who do not utilize or require these specific
+      lighting features, as it will not impact core device functionality.
+- id: Svc_MapsBroker
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Диспетчер скачанных карт. Если вы не используете приложения Windows,
+    работающие с картами в автономном режиме, можно установить режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the service's function is accurate. Setting
+      it to 'Manual' is a safe and reasonable recommendation for users who do not
+      actively use offline map features, as it allows the service to start only when
+      needed by an application.
+- id: Svc_MuseAuth
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Служба MuseAuthService (связана с Adobe Creative Cloud). Если вы
+    не используете продукты Adobe или не нуждаетесь в их постоянной фоновой работе,
+    можно установить режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 1.0
+    verification_comment: The description of the service and its association with
+      Adobe Creative Cloud is accurate. The recommendation to set it to manual startup
+      is safe and reasonable for users who do not use Adobe products or do not require
+      their constant background operation, as it is not a critical Windows service.
+- id: Svc_WondersharePush
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: Служба push-уведомлений Wondershare. Если вы не используете программы
+    Wondershare или не нуждаетесь в их уведомлениях, можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description accurately identifies the service as a Wondershare
+      push notification component. The recommendation to disable it is safe and reasonable
+      for users who do not use Wondershare programs or do not require their notifications,
+      as it is a non-essential third-party service.
+- id: Svc_ProgCompAssist
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Служба помощника по совместимости программ. Отвечает за обнаружение
+    и исправление проблем совместимости старых программ. Можно установить режим запуска
+    вручную, если вы редко запускаете старые приложения.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: The service described is indeed the Program Compatibility
+      Assistant Service (PcaSvc), responsible for detecting and resolving compatibility
+      issues with older applications. Setting its startup type to manual is a safe
+      and reasonable optimization for users who rarely run legacy software, as it
+      will only start when needed.
+- id: Svc_QMEmulator
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  - gamer
+  description_ru: Служба эмулятора Tencent Gaming Buddy. Если вы не используете этот
+    эмулятор, можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 1.0
+    verification_comment: The description is accurate. 'Svc_QMEmulator' is a service
+      associated with Tencent Gaming Buddy (now known as GameLoop). If the user does
+      not use this emulator, disabling the service is safe and will free up system
+      resources without affecting other core Windows functions.
+- id: Svc_RockstarGameLibrary
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  - gamer
+  description_ru: Служба библиотеки игр Rockstar. Если вы не играете в игры Rockstar,
+    можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: The existence of a service related to the Rockstar Games
+      Library/Launcher is accurate. Disabling it is safe and reasonable for users
+      who do not play Rockstar games, as it will only affect the functionality of
+      those specific games and the launcher itself, not core Windows operations.
+- id: Svc_WinDefenderATP
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Служба Windows Defender Advanced Threat Protection. Если вы не используете
+    расширенные функции защиты от угроз (обычно в корпоративной среде), можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: The service 'Svc_WinDefenderATP' is indeed related to Microsoft
+      Defender for Endpoint (formerly Windows Defender Advanced Threat Protection).
+      These advanced features are primarily for enterprise environments. For a general
+      home user who does not have an enterprise license or is not managed by an organization,
+      disabling this service is generally safe as it does not affect the core Windows
+      Defender Antivirus protection.
+- id: Svc_PrintSpooler
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Диспетчер печати. Если вы редко печатаете, можно установить режим
+    запуска вручную. Служба запустится при отправке документа на печать.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The service is correctly identified as 'Print Spooler'.
+      Setting it to manual startup is a safe and valid optimization for users who
+      print infrequently, as it will indeed start automatically when a print job is
+      initiated.
+- id: Svc_SteamClient
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  - gamer
+  description_ru: Служба клиента Steam. Если вы не используете Steam, можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.9
+    verification_comment: The description 'Служба клиента Steam' accurately identifies
+      the Steam client service. The recommendation to disable it if you do not use
+      Steam is correct and safe, as it only affects Steam functionality and not core
+      Windows operations. Note that the standard service name is typically 'Steam
+      Client Service' (display name) or 'SteamClientService' (service name), not 'Svc_SteamClient'.
+- id: Svc_WIA
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Служба загрузки изображений Windows (WIA). Поддерживает сканеры
+    и камеры. Если вы не используете сканеры или камеры, можно установить режим запуска
+    вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: 'The service is correctly identified as ''Windows Image
+      Acquisition (WIA)'' (actual service name: StiSvc). Its function is accurately
+      described. Setting it to ''Manual'' is a safe and reasonable recommendation
+      for users who do not regularly use scanners or cameras, as the service will
+      still start automatically when an imaging device is connected or an application
+      requests it.'
+- id: Svc_DistributedLinkTracking
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: Клиент отслеживания изменившихся связей. Поддерживает связи между
+    файлами NTFS. Отключение безопасно, если вы не перемещаете файлы, на которые ссылаются
+    ярлыки, между дисками.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the 'Distributed Link Tracking Client'
+      service (Svc_DistributedLinkTracking) is accurate. It maintains links between
+      files on NTFS volumes, especially for shortcuts and OLE objects. Disabling it
+      is generally safe for most users, as it primarily affects the automatic updating
+      of these links when target files are moved, particularly across drives. For
+      typical usage, this service is not critical, and its impact when disabled is
+      minimal and well-described by the caveat.
+- id: Svc_CreativeUWPRPC
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  - gamer
+  description_ru: Служба UWP RPC (Creative Technology Ltd.). Связана с приложением
+    Sound Blaster Connect. Если вы не используете это приложение, можно установить
+    режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: The description of the service's origin and its association
+      with Sound Blaster Connect is accurate. Setting the service to 'Manual' startup
+      is a safe and common optimization for services tied to specific applications
+      that are not always in use, as it allows the service to start only when the
+      associated application requires it, saving system resources.
+- id: Svc_VSInstaller
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: Служба повышения привилегий установщика Visual Studio. Если вы не
+    устанавливаете или не обновляете Visual Studio часто, можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: The description of the service's function is accurate. Disabling
+      it is safe if you don't frequently install or update Visual Studio, as its primary
+      role is to facilitate those operations. You would simply need to re-enable it
+      if you encounter issues when trying to update or modify Visual Studio later.
+- id: Svc_WLANAutoConfig
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: Служба автонастройки WLAN. Если вы используете только проводное
+    подключение к Интернету и не используете Wi-Fi, эту службу можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: The service's display name is 'WLAN AutoConfig' and its
+      service name is 'WlanSvc'. The description of its function is accurate. The
+      recommendation is safe and reasonable for a user who exclusively uses wired
+      internet and does not require Wi-Fi functionality.
+- id: Svc_WMPNetworkShare
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: Служба общих сетевых ресурсов проигрывателя Windows Media. Если
+    вы не делитесь медиатекой Windows Media Player с другими устройствами в сети,
+    можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 1.0
+- id: Svc_WinPushNotifications
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Службы системы push-уведомлений Windows (WpnService, WpnUserService).
+    Отвечают за уведомления от приложений UWP. Если вы не нуждаетесь в мгновенных
+    уведомлениях от таких приложений, можно установить режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description accurately identifies the WpnService and
+      WpnUserService as responsible for Windows push notifications for UWP applications.
+      Setting these services to 'Manual' startup is a safe and reasonable optimization
+      for users who do not require instant notifications from such applications, as
+      it does not break core system functionality and allows the services to start
+      if explicitly needed.
+- id: Svc_WSAIFabric
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  - gamer
+  description_ru: Служба WSAIFabricSvc. Связана с подсистемой Windows для Android
+    (WSA). Если вы не используете приложения Android на Windows, можно установить
+    режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The service 'WSAIFabricSvc' (Windows Subsystem for Android
+      Platform Service) is indeed integral to the Windows Subsystem for Android. Setting
+      its startup type to 'Manual' is a safe and reasonable recommendation for users
+      who do not regularly use Android applications, as it prevents the service from
+      running unnecessarily while still allowing it to start on demand if an Android
+      app is launched.
+- id: Svc_WSL
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  - gamer
+  description_ru: Служба WSL. Связана с подсистемой Windows для Linux. Если вы не
+    используете WSL, можно установить режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The service responsible for WSL is technically named 'LxssManager'
+      (Linux Subsystem Manager), but 'WSL Service' or 'Svc_WSL' is a common and understandable
+      descriptive reference. The description of its function is accurate, and the
+      recommendation to set it to manual startup if WSL is not used is safe and reasonable,
+      as it allows the service to start on demand when a WSL instance is launched,
+      without consuming resources unnecessarily when WSL is idle or not used.
+- id: Svc_YandexBrowserUpdate
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: Служба обновления Yandex.Browser. Можно установить режим запуска
+    вручную, чтобы браузер обновлялся при запуске или по запросу.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: The description of the service is accurate. Setting its
+      startup type to manual is a safe and common practice for update services; the
+      browser application itself will then typically handle update checks when launched
+      or when an update is manually requested by the user.
+- id: Svc_CloudClipboard
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Служба буфера обмена пользователя. Отвечает за облачный буфер обмена.
+    Если вы не используете синхронизацию буфера обмена между устройствами, можно установить
+    режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: The description accurately reflects the function of the
+      Clipboard User Service (often identified as `cbdhsvc` or 'User Data Access_xxxx'
+      in task manager, responsible for cloud clipboard and history). The recommendation
+      to set its startup type to manual is safe and appropriate if the user does not
+      utilize cross-device clipboard synchronization.
+- id: Svc_SyncHost
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Служба хоста синхронизации. Отвечает за синхронизацию почты, контактов,
+    календаря и других пользовательских данных для приложений Microsoft. Если вы не
+    используете эти функции, можно установить режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.9
+    verification_comment: The service's internal name is 'OneSyncSvc', with 'Sync
+      Host' as its display name. The description of its function (synchronizing mail,
+      contacts, calendar, etc., for Microsoft applications) is accurate. Setting it
+      to manual is a safe recommendation for users who do not utilize these built-in
+      Windows synchronization features, as it will only affect those specific applications
+      and not core system functionality.
+- id: Startup_Ollama
+  type: startup_item
+  safety: high
+  relevant_profiles:
+  - power_user
+  - gamer
+  description_ru: Ярлык для запуска Ollama при старте системы. Если вы не используете
+    Ollama постоянно, можно отключить автозапуск.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description accurately states that this item launches
+      Ollama at system startup. The recommendation to disable autostart if not used
+      constantly is safe and reasonable, as it helps manage system resources without
+      affecting core system functionality. Users can always launch Ollama manually
+      when needed.
+- id: Startup_Rainmeter
+  type: startup_item
+  safety: high
+  relevant_profiles:
+  - power_user
+  - gamer
+  description_ru: Ярлык для запуска Rainmeter при старте системы. Если вы не хотите,
+    чтобы Rainmeter запускался автоматически, можно отключить автозапуск.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.99
+- id: Startup_OneNoteSend
+  type: startup_item
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: Ярлык для запуска инструмента 'Отправить в OneNote' при старте системы.
+    Если вы не используете эту функцию часто, можно отключить автозапуск.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description accurately identifies the startup item's
+      purpose. The recommendation to disable it if not frequently used is safe and
+      reasonable, as it only affects the automatic loading of a convenience feature
+      and does not impair core system functionality or OneNote itself.
+- id: Startup_YandexBrowserAutoLaunch
+  type: startup_item
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: Автозапуск Yandex.Browser. Если вы не хотите, чтобы браузер запускался
+    автоматически после перезагрузки, можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description accurately reflects the purpose of such
+      a startup item for Yandex.Browser. Disabling it is safe and will only prevent
+      the browser from launching automatically at system startup, requiring manual
+      launch if desired.
+- id: Startup_AdGuardVPNClient
+  type: startup_item
+  safety: high
+  relevant_profiles:
+  - power_user
+  - gamer
+  description_ru: Автозапуск клиента AdGuard VPN. Если вы не используете VPN постоянно,
+    можно отключить автозапуск и запускать клиент вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description accurately reflects the purpose of a VPN
+      client startup item. The recommendation is safe and reasonable, allowing users
+      to manage resource usage based on their VPN habits.
+- id: Startup_WondershareHelper
+  type: startup_item
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: Вспомогательная программа Wondershare. Может работать в фоновом
+    режиме. Если вы не используете программы Wondershare или не нуждаетесь в их постоянной
+    фоновой работе, можно отключить автозапуск.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description accurately identifies it as an auxiliary
+      Wondershare program that runs in the background. The recommendation to disable
+      autostart if not needed or if Wondershare programs are not used is safe and
+      reasonable, as it primarily affects background features like updates or quick
+      launch, not core system stability.
+- id: Startup_JavaUpdateSched
+  type: startup_item
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: Планировщик обновлений Java. Можно отключить автозапуск, если вы
+    предпочитаете проверять обновления Java вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description is accurate. Disabling the Java update scheduler
+      is safe, provided the user understands they will need to manually check for
+      and install Java updates to ensure security and functionality.
+- id: Svc_AppIDSvc
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  - gamer
+  description_ru: Служба удостоверения приложений. Используется AppLocker для контроля
+    запуска приложений. Если вы не используете AppLocker, можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the 'Application Identity' service (AppIDSvc)
+      and its role with AppLocker is accurate. For typical home users who do not utilize
+      AppLocker (a feature primarily used in enterprise environments for application
+      control), disabling this service is generally safe and will not impact core
+      system functionality.
+- id: Svc_ApxSvc
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  - gamer
+  description_ru: Прокси-служба виртуального звукового устройства Windows. Если вы
+    не используете виртуальные аудиоустройства, эту службу можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description accurately identifies 'Svc_ApxSvc' (AudioProxyService)
+      as related to Windows virtual audio devices, primarily for spatial sound features.
+      Disabling it is safe if these features are not used, as it does not affect core
+      audio functionality.
+- id: Svc_AssignedAccessManagerSvc
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: Служба AssignedAccessManager. Используется для режима киоска, ограничивающего
+    доступ к функциям системы. Если вы не используете этот режим, можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the service's function (Assigned Access/Kiosk
+      Mode) is accurate. The recommendation to disable it if the mode is not used
+      is safe and correct, as it does not impact general system functionality for
+      a typical user.
+- id: Svc_OfflineFiles
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: Автономные файлы. Позволяет работать с сетевыми файлами в автономном
+    режиме. Если вы не используете эту функцию, можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the 'Offline Files' service (CscService)
+      is accurate. The recommendation to disable it if not used is safe and reasonable,
+      as it's a feature primarily for network file synchronization and not critical
+      for general system operation.
+- id: Svc_DmEnrollmentSvc
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: Служба регистрации управления устройствами. Используется для регистрации
+    устройств в системах управления мобильными устройствами (MDM). Для домашних пользователей
+    не требуется, можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the service's function is accurate. For
+      typical home users who are not enrolling their devices into a corporate or educational
+      Mobile Device Management (MDM) system, this service is indeed not required and
+      can be safely disabled without impacting core functionality.
+- id: Svc_WiredAutoConfig
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Проводная автонастройка. Используется для аутентификации в проводных
+    сетях (802.1X). Если вы не используете такую аутентификацию (например, в корпоративной
+    сети), можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The service 'Wired AutoConfig' (internal name 'dot3svc')
+      is indeed used for 802.1X authentication in wired networks. The recommendation
+      to disable it if this specific type of authentication is not used (common in
+      home environments) is accurate and safe, as it will not affect standard wired
+      connections.
+- id: Svc_EapHost
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Расширяемый протокол проверки подлинности (EAP). Используется для
+    аутентификации в некоторых типах сетей. Если вы не используете корпоративные или
+    защищенные сети с EAP, можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: The description of the Extensible Authentication Protocol
+      (EAP) service and its function is accurate. The recommendation to disable it
+      is safe and reasonable for users who do not connect to networks requiring EAP
+      authentication (e.g., 802.1X corporate, educational, or some VPN networks),
+      as it will not impact their standard home network connectivity.
+- id: Svc_EnterpriseAppManagement
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: Служба управления корпоративными приложениями. Используется в корпоративных
+    средах для управления приложениями. Для домашних пользователей не требуется, можно
+    отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the 'Enterprise App Management Service'
+      (Svc_EnterpriseAppManagement) is accurate. It is indeed primarily used in corporate/enterprise
+      environments for application management and is generally not required for typical
+      home users. Disabling it for a standalone home PC is safe and will not impact
+      core functionality.
+- id: Svc_FunctionDiscoveryProviderHost
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Хост поставщика обнаружения функций. Используется для обнаружения
+    сетевых устройств и ресурсов. Если вы не используете сетевое обнаружение, можно
+    отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.9
+    verification_comment: The description of the 'Function Discovery Provider Host'
+      service and its role in network discovery is accurate. The recommendation to
+      disable it if network discovery is not used is technically correct and will
+      not destabilize the system. However, it's important for a general user to understand
+      that many common Windows features (e.g., browsing network shares, connecting
+      to network printers, media streaming, HomeGroup) rely on network discovery.
+      Disabling this service will prevent these features from working correctly, which
+      might be an unexpected consequence for users who don't explicitly think of themselves
+      as 'using network discovery'.
+- id: Svc_FunctionDiscoveryResourcePublication
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Публикация ресурсов обнаружения функций. Публикует ресурсы вашего
+    ПК для обнаружения другими устройствами в сети. Если вы не используете сетевое
+    обнаружение, можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: The description of the service's function is accurate. The
+      recommendation is safe and reasonable for users who do not rely on network discovery
+      features such as file/printer sharing, media streaming (DLNA/UPnP), or automatic
+      device detection on their local network.
+- id: Svc_CameraFrameServer
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Сервер кадров камеры Windows. Обеспечивает доступ к камере. Если
+    вы редко используете камеру, можно установить режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The service name, description, and the recommendation are
+      all accurate. Setting it to manual startup is a safe optimization for users
+      who rarely use their camera, as the service will start automatically when an
+      application requests camera access.
+- id: Svc_CameraFrameServerMonitor
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Монитор сервера кадров камеры Windows. Вспомогательная служба для
+    работы камеры. Если вы редко используете камеру, можно установить режим запуска
+    вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: The service is correctly identified as 'Camera Frame Server
+      Monitor' (its actual service name is FrameServerMonitor). Setting it to manual
+      startup is a safe and reasonable optimization for users who rarely use their
+      camera, as the service will still start on demand when the camera is accessed.
+- id: Svc_GameInput
+  type: service
+  safety: medium
+  relevant_profiles:
+  - gamer
+  description_ru: Служба GameInput. Поддерживает работу некоторых игровых устройств
+    ввода. Если вы не используете такие устройства, можно установить режим запуска
+    вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: The description of the service's function is accurate. Setting
+      it to manual startup is a safe recommendation for users who do not utilize gaming
+      input devices or Xbox-related features, as it will only start when needed.
+- id: Svc_HvHost
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Служба узла HV. Используется для виртуализации Hyper-V. Если вы
+    не используете Hyper-V, можно установить режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.9
+    verification_comment: The description of the service's function is accurate. Setting
+      its startup type to 'Manual' is generally safe if Hyper-V is not actively used,
+      as the service can still be started on demand by other features that might rely
+      on Hyper-V components (e.g., WSL2, Windows Sandbox).
+- id: Svc_KtmRm
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: KtmRm для координатора распределенных транзакций. Используется для
+    координации транзакций между несколькими базами данных или системами. Для большинства
+    домашних пользователей не требуется, можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: The description of the 'KtmRm' service (Kernel Transaction
+      Manager Resource Manager) is accurate; it is indeed used for coordinating transactions,
+      often in conjunction with the Distributed Transaction Coordinator (MSDTC). For
+      the vast majority of home users, this service is not required, and disabling
+      it will not impact typical daily use. It is primarily used by enterprise applications,
+      database systems, or development environments that require distributed transaction
+      capabilities.
+- id: Svc_Geolocation
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Служба географического положения. Предоставляет информацию о местоположении
+    для приложений. Если вы не используете службы определения местоположения, можно
+    установить режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+- id: Svc_NetBIOSHelper
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Модуль поддержки NetBIOS через TCP/IP. Поддерживает старые сетевые
+    функции. Если вы не используете устаревшие сетевые протоколы, можно установить
+    режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: The service is officially named 'TCP/IP NetBIOS Helper'
+      (or 'lmhosts' as its service name). The description of its function as supporting
+      NetBIOS over TCP/IP and older network functions is accurate. The recommendation
+      to set it to 'Manual' startup mode if legacy NetBIOS protocols are not used
+      is generally safe and reasonable for most modern Windows environments, as the
+      service will still start on demand if required by an application.
+- id: Svc_MSDTC
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: Координатор распределенных транзакций. Используется для координации
+    транзакций между несколькими базами данных или системами. Для большинства домашних
+    пользователей не требуется, можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The service's short name is MSDTC, and its full name is
+      Distributed Transaction Coordinator. The description of its function is accurate,
+      and for the vast majority of home users, it is not required and can be safely
+      disabled without impacting core system functionality.
+- id: Svc_iSCSIInitiator
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: Служба инициатора Microsoft iSCSI. Используется для подключения
+    к хранилищам iSCSI. Если вы не используете iSCSI, можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the Microsoft iSCSI Initiator Service
+      is accurate. The recommendation to disable it if iSCSI is not used is safe and
+      correct, as it's not a core system service required for general Windows operation.
+- id: Svc_NaturalAuthentication
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Проверка подлинности на основе физических параметров. Используется
+    для Windows Hello и других биометрических функций. Если вы не используете биометрическую
+    аутентификацию, можно установить режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the service's function is accurate. The
+      recommendation to set it to 'Manual' startup is safe and reasonable for users
+      who do not utilize Windows Hello or other biometric authentication methods,
+      as the service will still start automatically if a program or feature requires
+      it.
+- id: Svc_Netlogon
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: Сетевой вход в систему. Используется в доменных средах для аутентификации.
+    Для домашних пользователей не требуется, можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 1.0
+    verification_comment: The service described is indeed the Netlogon service. Its
+      function in domain environments for authentication is correctly stated. For
+      typical home users whose computers are not joined to an Active Directory domain,
+      this service is not required and can be safely disabled without affecting system
+      functionality.
+- id: Svc_MicrosoftPassportContainer
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Контейнер службы Microsoft Passport. Используется для Windows Hello.
+    Если вы не используете Windows Hello, можно установить режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The service 'Microsoft Passport Container' is indeed essential
+      for Windows Hello. Its default startup type is typically 'Manual (Trigger Start)',
+      meaning it only runs when Windows Hello is actively used or configured. Therefore,
+      explicitly setting it to 'Manual' is a safe recommendation and will not break
+      Windows Hello if it's used, nor will it cause issues if it's not used.
+- id: Svc_BranchCache
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: BranchCache. Используется для кэширования контента в корпоративных
+    сетях. Для домашних пользователей не требуется, можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of BranchCache's purpose is accurate, and
+      it is indeed not required for typical home users. Disabling it is safe and will
+      not impact normal system operation.
+- id: Svc_PerceptionSimulation
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  - gamer
+  description_ru: Служба имитации восприятия Windows. Используется для смешанной реальности
+    и VR. Если вы не используете эти функции, можно установить режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the service's function is accurate. Setting
+      it to 'Manual' startup is a safe and reasonable recommendation for users who
+      do not utilize Windows Mixed Reality or VR features, as it allows the service
+      to start only when needed by an application.
+- id: Svc_Telephony
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Телефония. Поддерживает работу телефонных устройств и модемов. Если
+    вы не используете эти функции, можно установить режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The service's display name is 'Telephony', and its internal
+      name is 'TapiSrv'. The description of its function (supporting telephone devices
+      and modems, primarily for TAPI applications like dial-up or fax) is accurate.
+      The recommendation to set it to manual startup if these functions are not used
+      is safe and reasonable for a general user, as it's not a critical service for
+      modern Windows operation.
+- id: Svc_RasAuto
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Диспетчер автоматических подключений удаленного доступа. Если вы
+    не используете коммутируемые подключения или автоматическое подключение VPN, можно
+    отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description and recommendation are accurate. This service
+      is primarily for legacy dial-up and some specific auto-connecting VPN configurations.
+      Disabling it is generally safe for most modern users who do not rely on these
+      features.
+- id: Svc_ReFSDedup
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: Служба Dedup ReFS. Используется для дедупликации данных на томах
+    ReFS. Если вы не используете файловую систему ReFS, можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the 'Svc_ReFSDedup' service (Data Deduplication
+      for ReFS) is accurate. It is indeed used for data deduplication on ReFS volumes.
+      The recommendation to disable it if ReFS is not used is safe and reasonable,
+      as most general Windows users do not utilize the ReFS file system.
+- id: Svc_RetailDemo
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: Служба демонстрации магазина. Используется для демонстрационных
+    устройств в розничной торговле. Для обычных пользователей не требуется, можно
+    отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+- id: Svc_SmartCard
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Смарт-карта. Поддерживает работу смарт-карт и считывателей. Если
+    вы не используете смарт-карты, можно установить режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the 'Smart Card' service (SCardSvr) is
+      accurate, and setting its startup type to 'Manual' is a safe and reasonable
+      recommendation for users who do not utilize smart cards or smart card readers,
+      as it will still start automatically if needed.
+- id: Svc_SmartCardDeviceEnum
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Служба перечисления устройств чтения смарт-карт. Вспомогательная
+    служба для смарт-карт. Если вы не используете смарт-карты, можно установить режим
+    запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: 'The description of the service''s function (Smart Card
+      Device Enumeration Service, auxiliary for smart cards) is accurate. The recommendation
+      to set it to manual startup if smart cards are not used is safe and reasonable,
+      as the service will only start when needed. Note: The actual service name in
+      Windows is typically ''SCardDeviceEnum'', not ''Svc_SmartCardDeviceEnum'', but
+      the description clearly refers to the correct service.'
+- id: Svc_SmartCardRemovalPolicy
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Политика удаления смарт-карт. Применяет политики при извлечении
+    смарт-карт. Если вы не используете смарт-карты, можно установить режим запуска
+    вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 1.0
+    verification_comment: The description of the 'Smart Card Removal Policy' service
+      (SCardRemovalPolicy) is accurate. Its purpose is indeed to apply policies when
+      smart cards are removed. The recommendation to set its startup type to 'Manual'
+      if smart cards are not used is safe and appropriate, as this is often its default
+      setting and it will only start when needed.
+- id: Svc_PaymentNFC
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Диспетчер платежей и NFC/защищенных элементов. Используется для
+    функций NFC и платежей. Если вы не используете эти функции, можно установить режим
+    запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the service's function is accurate. Setting
+      it to manual startup is a safe and reasonable recommendation for users who do
+      not utilize NFC or Windows payment features, as it allows the service to start
+      on demand if ever needed, without consuming resources unnecessarily.
+- id: Svc_SensorData
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Служба данных датчиков. Собирает данные с различных датчиков. Если
+    вы не используете датчики (например, на планшете), можно установить режим запуска
+    вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: The description of the 'Sensor Data Service' (Svc_SensorData)
+      is accurate; it indeed collects data from various sensors. The recommendation
+      to set its startup type to 'manual' is generally safe and reasonable for users
+      who do not utilize sensor-dependent features (common on many desktop PCs, or
+      if a laptop/tablet user prefers to disable auto-rotation, etc.). It will only
+      affect functionalities that rely on sensor input.
+- id: Svc_Sensor
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Служба датчиков. Управляет доступом к датчикам. Если вы не используете
+    датчики, можно установить режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: The service name is `SensrSvc`, but 'Svc_Sensor' is a common
+      way to refer to it. The description of its function is accurate, and the recommendation
+      to set it to manual if sensors are not used is safe and reasonable for a general
+      user, as it will still start if an application requires it.
+- id: Svc_RemoteDesktopConfig
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Настройка сервера удаленных рабочих столов. Используется для настройки
+    служб удаленных рабочих столов. Если вы не используете удаленный рабочий стол,
+    можно установить режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: 'The description accurately reflects the purpose of the
+      ''Remote Desktop Services Configuration'' service (actual service name: SessionEnv).
+      The recommendation to set it to manual startup if Remote Desktop is not used
+      is safe and correct, as this service is primarily involved in configuring and
+      maintaining the Remote Desktop Services environment.'
+- id: Svc_ICS
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Общий доступ к подключению к Интернету (ICS). Позволяет другим устройствам
+    в сети использовать ваше интернет-подключение. Если вы не делитесь Интернетом,
+    можно установить режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 1.0
+    verification_comment: The description of the Internet Connection Sharing (ICS)
+      service is accurate. The recommendation to set its startup type to 'Manual'
+      if not actively using the feature is safe and a common optimization practice,
+      as it prevents the service from consuming resources unnecessarily while still
+      allowing it to be started if needed.
+- id: Svc_SMSRouter
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: Служба маршрутизатора SMS Microsoft Windows. Используется для маршрутизации
+    SMS-сообщений. Если вы не используете функции мобильной связи, можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the service's function is accurate. The
+      recommendation to disable it if mobile communication features (such as those
+      used by the 'Phone Link' app or integrated cellular modems) are not utilized
+      is safe and reasonable.
+- id: Svc_SNMPTrap
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: Ловушка SNMP. Принимает сообщения SNMP-ловушек. Если вы не используете
+    протокол SNMP, можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.99
+    verification_comment: The description of the 'SNMP Trap' service (Svc_SNMPTrap)
+      is accurate. It indeed receives SNMP trap messages. The recommendation to disable
+      it if SNMP is not used is safe and reasonable for the vast majority of home
+      and general business users, as SNMP is primarily used in specific network management
+      scenarios.
+- id: Svc_SSDPDiscovery
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Обнаружение SSDP. Обнаруживает сетевые устройства UPnP. Если вы
+    не используете UPnP-устройства (например, медиасерверы), можно установить режим
+    запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the SSDP Discovery service and its function
+      is accurate. The recommendation to set it to manual startup if UPnP devices
+      are not used is safe and a common optimization for users who do not rely on
+      UPnP functionality.
+- id: Svc_StorageTiers
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: Управление уровнями хранилища. Используется для управления многоуровневыми
+    хранилищами. Если вы не используете эту функцию, можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: The description of the service's function is accurate. This
+      service (often displayed as 'Storage Tiers Management' in Windows Services,
+      with an internal name like 'smphost' or 'StorSvc' being related) is indeed used
+      for managing multi-tiered storage within Storage Spaces. The recommendation
+      to disable it if you are not using this specific feature (Storage Spaces with
+      tiering) is safe and reasonable for a general user.
+- id: Svc_RemoteDesktopPortRedirector
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Перенаправитель портов пользовательского режима служб удаленных
+    рабочих столов. Вспомогательная служба для удаленного рабочего стола. Если вы
+    не используете удаленный рабочий стол, можно установить режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: 'The description provided accurately matches the function
+      of the ''Remote Desktop Services UserMode Port Redirector'' service (internal
+      name: UmRdpService), which is an auxiliary service for RDP connections, specifically
+      for device and port redirection. The recommendation to set its startup type
+      to ''Manual'' if Remote Desktop is not used is safe and reasonable, as it will
+      only start when needed and does not impact core system functionality.'
+- id: Svc_UPnPDeviceHost
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Узел универсальных PNP-устройств. Позволяет вашему ПК выступать
+    в качестве хоста для UPnP-устройств. Если вы не используете эту функцию, можно
+    установить режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: The description of the service's function is accurate. The
+      actual service name is 'upnphost'. The recommendation to set it to manual if
+      not used is safe and reasonable, as this service is not critical for core system
+      operation and can be started on demand.
+- id: Svc_VirtualBox
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Системная служба VirtualBox. Если вы не используете VirtualBox,
+    эту службу можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The service is indeed associated with Oracle VM VirtualBox.
+      Disabling it when VirtualBox is not in use is safe and will not affect core
+      Windows functionality. It's an application-specific service, not a critical
+      operating system service.
+- id: Svc_HyperVGuestInterface
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Интерфейс гостевой службы Hyper-V. Используется для взаимодействия
+    с гостевыми ОС Hyper-V. Если вы не используете Hyper-V, можно установить режим
+    запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the service's function is accurate. The
+      recommendation to set it to manual if Hyper-V is not in use (either as a host
+      or as a guest VM) is safe and reasonable for minor resource optimization.
+- id: Svc_HyperVHeartbeat
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Служба пульса (Hyper-V). Используется для мониторинга состояния
+    гостевых ОС Hyper-V. Если вы не используете Hyper-V, можно установить режим запуска
+    вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the Hyper-V Heartbeat Service (vmickvpexchange)
+      is accurate. The recommendation to set it to manual startup if Hyper-V is not
+      used is safe and reasonable, as it will not be needed and can slightly reduce
+      system overhead, though the resource savings are typically minimal.
+- id: Svc_HyperVDataExchange
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Служба обмена данными (Hyper-V). Используется для обмена данными
+    между хостом и гостевыми ОС Hyper-V. Если вы не используете Hyper-V, можно установить
+    режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 1.0
+- id: Svc_HyperVGuestShutdown
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Служба завершения работы в качестве гостя (Hyper-V). Используется
+    для корректного завершения работы гостевых ОС Hyper-V. Если вы не используете
+    Hyper-V, можно установить режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the 'Hyper-V Guest Shutdown Service'
+      (Svc_HyperVGuestShutdown) is accurate. It is indeed used for graceful shutdowns
+      of Hyper-V guest operating systems. The recommendation to set it to manual startup
+      mode if Hyper-V is not used on the system is safe and reasonable, as it will
+      not cause issues and can slightly reduce system resource usage.
+- id: Svc_HyperVTimeSync
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Служба синхронизации времени Hyper-V. Используется для синхронизации
+    времени между хостом и гостевыми ОС Hyper-V. Если вы не используете Hyper-V, можно
+    установить режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the service's function is accurate. The
+      recommendation is safe and reasonable for users who do not utilize Hyper-V.
+      The actual service name in Windows Services (services.msc) is `vmictimesync`.
+- id: Svc_HyperVPowerShellDirect
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Служба Hyper-V PowerShell Direct. Используется для управления гостевыми
+    ОС Hyper-V через PowerShell. Если вы не используете Hyper-V, можно установить
+    режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The service's display name is 'Hyper-V PowerShell Direct
+      Service' (internal name 'vmwpd'). Its function is accurately described. The
+      recommendation to set it to manual startup if Hyper-V is not used is safe and
+      reasonable, as it only impacts the specific PowerShell Direct feature and not
+      general Hyper-V operation.
+- id: Svc_HyperVVolumeShadowCopy
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Служба запросов на теневое копирование томов Hyper-V. Используется
+    для создания теневых копий томов гостевых ОС Hyper-V. Если вы не используете Hyper-V,
+    можно установить режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 1.0
+    verification_comment: The description of the service's function is accurate. The
+      recommendation to set it to manual startup if Hyper-V is not used is safe and
+      reasonable, as the service is only relevant for Hyper-V virtual machine backup
+      operations.
+- id: Svc_Wallet
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: Служба кошелька. Используется для функций Windows Wallet. Если вы
+    не используете Windows Wallet, можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.9
+    verification_comment: The description of the 'WalletService' (often referred to
+      as 'Svc_Wallet') is accurate. The Windows Wallet feature is not widely used
+      by most modern Windows users, making the recommendation to disable it if not
+      used generally safe and reasonable.
+- id: Svc_BlockLevelBackup
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Служба модуля архивации на уровне блоков. Используется для резервного
+    копирования Windows. Если вы не используете встроенное резервное копирование Windows,
+    можно установить режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: The description accurately identifies the 'Block Level Backup
+      Engine Service' (wbengine), which is indeed used for Windows built-in backup
+      and restore operations. Setting its startup type to manual is a safe and reasonable
+      recommendation if you do not actively use Windows built-in backup, as it will
+      still start on demand when required by the system or an application.
+- id: Svc_Biometric
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Биометрическая служба Windows. Используется для биометрических устройств
+    (например, сканеров отпечатков пальцев). Если вы не используете биометрию, можно
+    установить режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The service described is indeed the Windows Biometric Service
+      (WbioSrvc), responsible for biometric devices. The recommendation to set its
+      startup type to manual if biometrics are not used is accurate, safe, and a common
+      optimization for users who do not utilize these features.
+- id: Svc_WindowsConnectNow
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: Немедленные подключения Windows - регистратор настройки. Используется
+    для Wi-Fi Protected Setup. Если вы не используете эту функцию, можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The service 'WcncSvc' (Windows Connect Now - Config Registrar)
+      is indeed used for Wi-Fi Protected Setup (WPS). Disabling it is safe and will
+      not affect general Wi-Fi connectivity if the user does not utilize WPS for connecting
+      to networks.
+- id: Svc_WebClient
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Веб-клиент. Позволяет программам Windows создавать, получать доступ
+    и изменять файлы в Интернете. Если вы не используете WebDAV или доступ к файлам
+    через веб-папки, можно установить режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the WebClient service's function is accurate,
+      primarily enabling WebDAV functionality. The recommendation to set its startup
+      type to manual is safe and reasonable for users who do not utilize WebDAV or
+      access files via web folders, as it will only start when explicitly needed.
+- id: Svc_ErrorReporting
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: Служба регистрации ошибок Windows. Отправляет отчеты об ошибках
+    в Microsoft. Отключение безопасно.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the service's function (Windows Error
+      Reporting, sending reports to Microsoft) is accurate. Disabling this service
+      (WerSvc) is generally safe and does not impact core system functionality, though
+      it prevents Microsoft from receiving diagnostic data. The service name 'Svc_ErrorReporting'
+      is not the official service name (which is 'WerSvc'), but the description clearly
+      refers to the Windows Error Reporting Service.
+- id: Svc_WiFiDirect
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Служба диспетчера подключений служб Wi-Fi Direct. Используется для
+    прямого подключения Wi-Fi. Если вы не используете Wi-Fi Direct, можно установить
+    режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the service and its function is accurate.
+      Setting it to 'Manual' is a safe and reasonable optimization for users who do
+      not utilize Wi-Fi Direct features (e.g., Miracast, some printer connections).
+- id: Svc_WindowsInsider
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: Служба предварительной оценки Windows. Используется для участия
+    в программе Windows Insider. Если вы не участвуете, можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the service's function is accurate. The
+      recommendation to disable it if you are not participating in the Windows Insider
+      Program is safe and correct, as it will not impact the normal operation of Windows
+      for non-Insiders. The actual service name is 'wisvc' (Windows Insider Service).
+- id: Svc_WorkFolders
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: Рабочие папки. Позволяет синхронизировать файлы между устройствами
+    и корпоративными серверами. Для домашних пользователей не требуется, можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the Work Folders service is accurate.
+      For typical home users who do not connect to corporate networks using this feature,
+      disabling it is safe and will not impact their system's functionality.
+- id: Svc_ParentalControls
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: Родительский контроль. Мониторит и применяет настройки родительского
+    контроля. Если вы не используете родительский контроль, можно отключить.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: The description accurately reflects the function of Windows
+      Parental Controls (now often referred to as Family Safety). Disabling this service
+      is safe and reasonable for users who do not utilize parental control features
+      for any accounts on their system, as it primarily manages the enforcement and
+      monitoring of these specific family safety settings.
+- id: Svc_WWANAutoConfig
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Автонастройка WWAN. Используется для мобильного широкополосного
+    доступа (3G/4G/5G). Если вы не используете мобильный интернет, можно установить
+    режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the service's function is accurate. The
+      recommendation to set it to manual startup if mobile internet is not used is
+      safe and reasonable, as it prevents the service from consuming resources unnecessarily
+      while still allowing it to be started if a WWAN device is detected or configured.
+- id: Svc_XboxLiveAuth
+  type: service
+  safety: medium
+  relevant_profiles:
+  - gamer
+  description_ru: Диспетчер проверки подлинности Xbox Live. Используется для входа
+    в Xbox Live. Если вы не используете сервисы Xbox Live, можно установить режим
+    запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: The description of the service's function is accurate. The
+      recommendation to set it to manual is safe and reasonable for users who genuinely
+      do not use any Xbox Live-related services or applications (including Xbox Game
+      Pass, Microsoft Store games that use Xbox Live, or the Xbox app itself). If
+      they later decide to use these services, the service will attempt to start on
+      demand, which might introduce a slight delay or require a manual start.
+- id: Svc_XboxLiveGameSave
+  type: service
+  safety: medium
+  relevant_profiles:
+  - gamer
+  description_ru: Сохранение игр на Xbox Live. Используется для синхронизации сохранений
+    игр Xbox Live. Если вы не используете сервисы Xbox Live, можно установить режим
+    запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the service's function is accurate, and
+      the recommendation to set it to manual startup is safe and reasonable for users
+      who do not utilize Xbox Live services, as it will only start when explicitly
+      needed by an application.
+- id: Svc_XboxLiveNetworking
+  type: service
+  safety: medium
+  relevant_profiles:
+  - gamer
+  description_ru: Сетевая служба Xbox Live. Используется для сетевых функций Xbox
+    Live. Если вы не используете сервисы Xbox Live, можно установить режим запуска
+    вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: The service's display name is 'Xbox Live Networking Service'
+      (internal name `XboxNetApiSvc`). The description of its function is accurate,
+      and the recommendation to set it to manual startup is safe and reasonable for
+      users who do not utilize Xbox Live features or related Xbox applications/games.
+- id: Svc_GameDVRBroadcast
+  type: service
+  safety: medium
+  relevant_profiles:
+  - gamer
+  description_ru: Служба пользователя GameDVR и Broadcast. Используется для записи
+    игрового процесса и трансляций. Если вы не используете эти функции, можно установить
+    режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the service's function is accurate. Setting
+      it to manual startup is a safe and common recommendation for users who do not
+      utilize the Xbox Game Bar's recording and broadcasting features, as it will
+      only start when explicitly needed.
+- id: Svc_CaptureService
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Служба CaptureService. Используется для захвата экрана. Если вы
+    не используете встроенные функции захвата экрана Windows, можно установить режим
+    запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The statement is accurate. The 'CaptureService' (Svc_CaptureService)
+      is indeed used for screen capture, primarily by the Xbox Game Bar and other
+      Windows capture features. Setting it to manual startup is a safe and reasonable
+      recommendation for users who do not frequently use these built-in capture functionalities,
+      as it will still start on demand.
+- id: Svc_MessagingService
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Служба обмена сообщениями. Используется для синхронизации SMS/MMS
+    с мобильными устройствами. Если вы не используете встроенные приложения для обмена
+    сообщениями, можно установить режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description of the 'Messaging Service' (Svc_MessagingService)
+      is accurate. It is indeed used for SMS/MMS synchronization, primarily for features
+      like the 'Phone Link' (formerly 'Your Phone') app. Setting it to manual startup
+      is a safe and reasonable optimization for users who do not utilize these integrated
+      messaging features, as it will still start if an application requests it.
+- id: Svc_P9RdrService
+  type: service
+  safety: high
+  relevant_profiles:
+  - power_user
+  description_ru: Служба P9RdrService. Связана с Project Rome для кросс-устройственных
+    функций. Отключение безопасно, если вы не используете эти функции.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description and recommendation are accurate. This service
+      is indeed related to Project Rome and cross-device experiences. Disabling it
+      is safe if the user does not utilize features like Timeline, 'Continue on PC',
+      or other shared experiences across devices.
+- id: Svc_PenService
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Служба пера. Поддерживает функции ввода пером. Если вы не используете
+    перо или сенсорный экран, можно установить режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The service name in English Windows is 'Touch Keyboard and
+      Handwriting Panel Service' (TabletInputService), but the description of its
+      function and the recommendation are accurate and safe for users who do not use
+      pen or touch input. Setting it to manual allows it to start if needed, which
+      is safer than disabling it entirely.
+- id: Svc_ContactData
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Данные контактов. Индексирует данные контактов для приложений. Если
+    вы не используете встроенное приложение 'Контакты', можно установить режим запуска
+    вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: The description of the service's function is accurate. The
+      recommendation to set it to manual if the user does not utilize the built-in
+      'People' (Contacts) app or other applications that heavily rely on Windows contact
+      integration is safe and reasonable for a general user. The actual service name
+      is 'PimIndexMaintenanceSvc', but 'Contact Data' is its display name, and 'Svc_ContactData'
+      is a common reference.
+- id: Svc_PrintWorkflow
+  type: service
+  safety: medium
+  relevant_profiles:
+  - power_user
+  description_ru: Рабочий процесс печати. Поддерживает расширенные функции печати.
+    Если вы не используете эти функции, можно установить режим запуска вручную.
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: 'The description of the ''Print Workflow'' service (internal
+      service name: PrintWorkflow) and its function is accurate. It supports modern
+      printing features, including ''Microsoft Print to PDF'' and ''Microsoft XPS
+      Document Writer''. Setting its startup type to ''Manual'' is a safe and reasonable
+      recommendation for a general user who does not frequently use these specific
+      features, as the service will still start on demand when needed without affecting
+      standard printer functionality.'

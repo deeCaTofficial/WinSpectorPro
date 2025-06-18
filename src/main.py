@@ -13,7 +13,7 @@ import sys
 import os
 import traceback
 from datetime import datetime
-from pathlib import Path  # Используем pathlib для надежной работы с путями
+from pathlib import Path
 from typing import Dict, NoReturn
 import multiprocessing
 
@@ -29,12 +29,9 @@ def _show_critical_error_message(title: str, message: str) -> None:
     """Пытается показать ошибку в GUI, если это возможно."""
     try:
         from PyQt6.QtWidgets import QApplication, QMessageBox
-        # Убедимся, что QApplication существует, чтобы не создавать его лишний раз
         app = QApplication.instance() or QApplication(sys.argv)
         QMessageBox.critical(None, title, message)
     except ImportError:
-        # Если PyQt6 не установлен или не может быть импортирован,
-        # просто выводим сообщение в консоль.
         print(f"Критическая ошибка: {title}\n{message}", file=sys.stderr)
 
 def check_environment() -> None:
@@ -55,10 +52,8 @@ def check_environment() -> None:
 def emergency_log(error_message: str) -> None:
     """
     Записывает критическую ошибку в файл, если основной логгер еще не работает.
-    Используется для отлова самых ранних сбоев (например, при импортах).
     """
     try:
-        # Создаем лог в папке пользователя, чтобы избежать проблем с правами записи
         log_dir = Path.home() / ".winspector"
         log_dir.mkdir(exist_ok=True)
         
@@ -67,7 +62,6 @@ def emergency_log(error_message: str) -> None:
             f.write(f"--- CRASH AT {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ---\n")
             f.write(error_message + "\n\n")
     except Exception as e:
-        # Если не удалось даже это, выводим в консоль
         print(f"Не удалось записать аварийный лог: {e}", file=sys.stderr)
         print(f"Оригинальная ошибка:\n{error_message}", file=sys.stderr)
 
@@ -79,59 +73,56 @@ def run_app() -> NoReturn:
     Главная функция-лаунчер.
     Настраивает окружение и передает управление основному приложению.
     """
-    # Сначала проверяем окружение
     check_environment()
     
     app_paths: Dict[str, Path]
     
     try:
-        # Определяем пути в зависимости от режима запуска
         if IS_FROZEN:
-            # --- ИЗМЕНЕНИЕ: Все пути теперь относительно base_path ---
+            # Режим .exe
             base_path = Path(sys._MEIPASS)
-            log_dir = Path(sys.executable).parent / 'logs' # Логи оставляем рядом с .exe
-            assets_dir = base_path / 'assets' # Иконки теперь внутри .exe
+            log_dir = Path(sys.executable).parent / 'logs'
+            assets_dir = base_path / 'assets'
+            # Путь к данным внутри .exe
+            kb_path = base_path / 'winspector' / 'data' / 'knowledge_base'
         else:
-            # Для режима разработки ничего не меняется
-            base_path = Path(__file__).parent.resolve()
+            # Режим разработки
+            base_path = Path(__file__).parent.resolve() # -> C:/.../WinSpector_Pro_v1.0.0/src
             log_dir = base_path.parent / 'logs'
             assets_dir = base_path.parent / 'assets'
+            
+            # ####################################################################
+            # ### ФИНАЛЬНОЕ ИСПРАВЛЕНИЕ ЗДЕСЬ ###
+            # ####################################################################
+            # Строим путь: src -> winspector -> data -> knowledge_base
+            kb_path = base_path / 'winspector' / 'data' / 'knowledge_base'
 
-        # Добавляем корневую папку 'src' в системный путь, если работаем из исходников.
-        # Это не нужно для .exe, так как PyInstaller сам управляет путями.
         if not IS_FROZEN:
             src_root = str(base_path.parent)
             if src_root not in sys.path:
                 sys.path.insert(0, src_root)
         
-        # Импортируем основной модуль здесь, после настройки путей.
-        # Это защищает от ImportError, если структура проекта неправильная.
         from src.winspector.application import main as app_main
 
-        # Создаем словарь с путями, который будет передан в основное приложение
         app_paths = {
-            "base": base_path, # Путь для поиска данных (knowledge_base.yaml)
-            "logs": log_dir,      # Путь для записи логов
-            "assets": assets_dir # Путь к ресурсам (иконки, и т.д.)
+            "base": base_path,
+            "logs": log_dir,
+            "assets": assets_dir,
+            "kb_path": kb_path,
         }
         
-        # Передаем управление и код выхода из приложения обратно в систему
         sys.exit(app_main(app_paths))
 
     except Exception:
-        # Ловим самые ранние ошибки, например, сбой импорта `src.winspector.application`
         full_error_message = f"Критическая ошибка на этапе запуска:\n{traceback.format_exc()}"
-        
         emergency_log(full_error_message)
-        
         _show_critical_error_message(
             "Критическая ошибка запуска",
             "Не удалось запустить приложение из-за непредвиденной ошибки.\n\n"
             "Подробности были записаны в файл 'winspector_crash.log' в вашей домашней папке."
         )
-        
         sys.exit(1)
 
 if __name__ == "__main__":
-    multiprocessing.freeze_support() # <-- ДОБАВИТЬ ЭТУ СТРОКУ
+    multiprocessing.freeze_support()
     run_app()

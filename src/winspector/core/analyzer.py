@@ -2,13 +2,15 @@
 """
 Главный класс-оркестратор. Управляет всеми модулями для выполнения
 комплексной автономной оптимизации под контролем ИИ.
+Финальная версия с оптимизированным потоком выполнения.
 """
 import asyncio
 import logging
 import yaml
-from typing import Callable, Dict, Any
+from pathlib import Path
+from typing import Callable, Dict, Any, List, TypedDict, Optional
+from datetime import datetime, timedelta
 
-# Импортируем все модули анализа из пакета `modules`
 from .modules import (
     AIAnalyzer,
     AICommunicator,
@@ -19,63 +21,72 @@ from .modules import (
 
 logger = logging.getLogger(__name__)
 
+class OptimizationSessionData(TypedDict, total=False):
+    """Контейнер для данных, собираемых и генерируемых в ходе сессии."""
+    system_profile: Dict[str, Any]
+    user_profile: List[str]
+    system_components: Dict[str, List[Dict]]
+    junk_files_report: Dict[str, Any]
+    comprehensive_data: Dict[str, Any]
+    ai_plan: Dict[str, Any]
+    debloat_summary: Dict[str, Any]
+    standard_cleanup_summary: Dict[str, Any]
+    ai_cleanup_summary: Dict[str, Any]
+    empty_folders_summary: Dict[str, Any]
+    final_summary: Dict[str, Any]
+    final_report: str
+
 
 class WinSpectorCore:
     """
     Центральное ядро, управляющее всеми модулями анализа и оптимизации.
-    Выступает в роли "Фасада" для GUI.
     """
-
     def __init__(self, config: Dict[str, Any]):
-        """
-        Инициализирует ядро и все его аналитические модули.
-
-        Args:
-            config: Словарь с конфигурацией приложения, содержащий пути.
-        
-        Raises:
-            RuntimeError: Если не удалось загрузить или распарсить knowledge_base.yaml.
-        """
         logger.info("Инициализация ядра WinSpectorCore (Advanced)...")
         self.config = config
-        
+        self._last_scan_time: Optional[datetime] = None
+        self._cached_system_components: Optional[Dict[str, Any]] = None
+        self.CACHE_TTL_MINUTES = 5
         try:
             self.knowledge_base = self._load_knowledge_base()
-            logger.info("База знаний успешно загружена.")
+            logger.info("База знаний успешно загружена и объединена.")
         except (FileNotFoundError, yaml.YAMLError) as e:
             logger.critical(f"Критическая ошибка: не удалось загрузить базу знаний. {e}", exc_info=True)
-            raise RuntimeError(f"Не удалось загрузить или прочитать knowledge_base.yaml: {e}") from e
-
-        # Инициализируем модули, передавая им только необходимые части конфигурации
-        self.user_profiler = UserProfiler(self.knowledge_base.get('user_profiler_config', {}))
-        self.windows_optimizer = WindowsOptimizer()
-        self.smart_cleaner = SmartCleaner(self.knowledge_base.get('heuristic_rules', {}))
-        
-        # Инициализируем два специализированных AI-модуля
+            raise RuntimeError(f"Не удалось загрузить или прочитать файлы базы знаний: {e}") from e
+        self.user_profiler = UserProfiler()
+        self.windows_optimizer = WindowsOptimizer(optimization_rules=self.knowledge_base.get('optimization_rules', []))
+        self.smart_cleaner = SmartCleaner(cleanup_rules=self.knowledge_base.get('cleanup_rules', []))
         self.ai_analyzer = AIAnalyzer(config)
         self.ai_communicator = AICommunicator(config)
-
-        self.background_tasks = set()  # <--- ИЗМЕНЕНИЕ: Сет для отслеживания фоновых задач
-
+        self.background_tasks = set()
         logger.info("Все модули ядра успешно инициализированы.")
 
     def _load_knowledge_base(self) -> Dict[str, Any]:
-        """Загружает базу знаний из YAML файла и валидирует ее."""
-        kb_path = self.config.get('kb_path')
-        if not kb_path or not kb_path.exists():
-            raise FileNotFoundError(f"Файл базы знаний не найден по пути: {kb_path}")
-            
-        with open(kb_path, 'r', encoding='utf-8') as f:
-            knowledge_base = yaml.safe_load(f)
-            if not isinstance(knowledge_base, dict):
-                raise yaml.YAMLError("Корень knowledge_base.yaml должен быть словарем (mapping).")
-            return knowledge_base
+        kb_dir_path = self.config.get('kb_path')
+        if not kb_dir_path or not kb_dir_path.is_dir():
+            raise FileNotFoundError(f"Директория базы знаний не найдена по пути: {kb_dir_path}")
+        combined_kb: Dict[str, Any] = {}
+        for yaml_file in kb_dir_path.glob("*.yaml"):
+            key_name = yaml_file.stem
+            with open(yaml_file, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f)
+                if not isinstance(data, (dict, list)):
+                    raise yaml.YAMLError(f"Файл {yaml_file.name} должен содержать список или словарь.")
+                combined_kb[key_name] = data
+        if not combined_kb:
+            raise FileNotFoundError(f"В директории {kb_dir_path} не найдено ни одного .yaml файла.")
+        return combined_kb
 
-    async def _run_ai_self_reflection(self, **kwargs) -> None:
-        """Безопасно запускает фоновую задачу саморефлексии ИИ."""
+    async def _run_ai_self_reflection(self, session_data: OptimizationSessionData) -> None:
+        logger.info("Запуск фоновой задачи саморефлексии ИИ...")
+        reflection_args = {
+            "user_profile": session_data.get("user_profile"),
+            "system_data": session_data.get("comprehensive_data"),
+            "plan": session_data.get("ai_plan"),
+            "summary": session_data.get("final_summary")
+        }
         try:
-            # Используем AICommunicator для этой задачи
-            suggestions = await self.ai_communicator.get_ai_suggestions_for_improvement(**kwargs)
+            suggestions = await self.ai_communicator.get_ai_suggestions_for_improvement(**reflection_args)
             logger.info(f"\n--- ПРЕДЛОЖЕНИЯ ОТ ИИ ДЛЯ РАЗРАБОТЧИКОВ ---\n{suggestions}\n-----------------------------------------")
         except Exception as e:
             logger.warning(f"Не удалось получить предложения по улучшению от ИИ: {e}", exc_info=True)
@@ -85,131 +96,167 @@ class WinSpectorCore:
         is_cancelled: Callable[[], bool],
         progress_callback: Callable[[int, str], None]
     ) -> str:
-        """
-        Выполняет полный цикл автономной оптимизации с обратной связью и возможностью отмены.
-        """
         logger.info("--- НАЧАЛО СЦЕНАРИЯ АВТОНОМНОЙ ОПТИМИЗАЦИИ ---")
-        
+        session = OptimizationSessionData()
         try:
-            # --- Этап 1: Подготовка и профилирование ---
-            progress_callback(5, "Создание точки восстановления...")
+            await self._step_create_restore_point(progress_callback);       _check_cancellation(is_cancelled)
+            await self._step_profile_user(session, progress_callback);          _check_cancellation(is_cancelled)
+            await self._step_collect_data_for_ai(session, progress_callback);   _check_cancellation(is_cancelled)
+            await self._step_generate_ai_plan(session, progress_callback);      _check_cancellation(is_cancelled)
             
-            # Запускаем блокирующую функцию создания точки восстановления в отдельном потоке,
-            # чтобы не заморозить асинхронный цикл.
-            loop = asyncio.get_running_loop()
-            await loop.run_in_executor(
-                None, # Используем стандартный ThreadPoolExecutor
-                self.windows_optimizer.create_restore_point
-            )
+            progress_callback(70, "Применение оптимизаций и очистка системы...")
+            cleanup_task = self._step_execute_full_cleanup(session)
+            action_task = self._step_execute_action_plan(session, progress_callback)
+            await asyncio.gather(cleanup_task, action_task)
+            _check_cancellation(is_cancelled)
             
-            logger.info("Точка восстановления успешно создана.")
-            progress_callback(10, "Точка восстановления создана.")
-
-            if is_cancelled(): return "Операция отменена."
+            await self._step_generate_final_report(session, progress_callback)
             
-            progress_callback(15, "Анализ вашего стиля работы...")
-            # get_system_profile содержит блокирующие вызовы WMI, выполняем в потоке
-            # БЫЛО НЕПРАВИЛЬНО:
-            # system_profile_data = await asyncio.to_thread(self.user_profiler.get_system_profile)
-
-            # СТАЛО ПРАВИЛЬНО:
-            system_profile_data = await self.user_profiler.get_system_profile()
-            
-            if is_cancelled(): return "Операция отменена."
-
-            # Дальнейший код остается без изменений
-            user_profile = await self.ai_communicator.determine_user_profile(
-                system_profile_data,
-                self.knowledge_base.get('user_profiler_config', {})
-            )
-            logger.info(f"ИИ определил профиль пользователя как '{user_profile}'.")
-            progress_callback(25, f"Обнаружен профиль: '{user_profile}'. Готовимся к глубокому анализу.")
-
-            # --- Этап 2: Глубокий сбор данных ---
-            progress_callback(30, "Сбор данных о компонентах системы...")
-            
-            # get_system_components и find_junk_files_deep - это корутины, 
-            # их нужно запускать как задачи, а не через to_thread.
-            components_task = asyncio.create_task(self.windows_optimizer.get_system_components())
-            junk_files_task = asyncio.create_task(self.smart_cleaner.find_junk_files_deep())
-            
-            system_components, junk_files_report = await asyncio.gather(
-                components_task, junk_files_task
-            )
-            
-            logger.info(f"Сбор данных завершен. Найдено служб: {len(system_components.get('services', []))}, "
-                        f"UWP-приложений: {len(system_components.get('uwp_apps', []))}, "
-                        f"категорий мусора: {len(junk_files_report)}.")
-
-            # --- Этап 3: AI-анализ и генерация плана ---
-            if is_cancelled(): return "Операция отменена."
-            progress_callback(55, "ИИ создает персональный план оптимизации...")
-            
-            comprehensive_data = { "system_components": system_components, "junk_files_report": junk_files_report }
-            # Используем AIAnalyzer для генерации плана
-            plan = await self.ai_analyzer.generate_distillation_plan(
-                comprehensive_data, user_profile, self.knowledge_base
-            )
-            
-            action_plan = plan.get("action_plan", [])
-            cleanup_plan = plan.get("cleanup_plan", {})
-            
-            # --- Этап 4: Исполнение плана ---
-            if is_cancelled(): return "Операция отменена."
-
-            # Если есть что выполнять, показываем прогресс
-            if action_plan or any(v.get("clean") for v in cleanup_plan.values()):
-                progress_callback(70, "Применение безопасных оптимизаций...")
-                debloat_task = self.windows_optimizer.execute_action_plan(action_plan, progress_callback)
-                cleanup_task = self.smart_cleaner.perform_deep_cleanup(cleanup_plan)
-                debloat_summary, cleanup_summary = await asyncio.gather(debloat_task, cleanup_task)
-            else:
-                # Если план пустой, создаем пустые отчеты
-                logger.info("ИИ не нашел ничего для оптимизации. Пропускаем этап выполнения.")
-                debloat_summary = {"disabled_services": [], "removed_apps": [], "errors": []}
-                cleanup_summary = {"cleaned_size_bytes": 0, "deleted_files_count": 0, "errors": 0}
-
-            # --- Этап 5: Финальный отчет (теперь выполняется всегда) ---
-            progress_callback(95, "Формирование отчета...")
-            final_summary = {"debloat": debloat_summary, "cleanup": cleanup_summary}
-            # Используем AICommunicator для генерации отчета
-            final_report = await self.ai_communicator.generate_final_report(final_summary, action_plan)
-
-            # --- Этап 6: Саморефлексия ИИ (фоновая задача) ---
-            logger.info("Запуск фоновой задачи саморефлексии ИИ...")
-            reflection_args = {
-                "user_profile": user_profile,
-                "system_data": comprehensive_data,
-                "plan": plan,
-                "summary": final_summary
-            }
-            # <--- ИЗМЕНЕНИЕ: Создаем задачу, добавляем ее в сет и устанавливаем callback для удаления
-            task = asyncio.create_task(self._run_ai_self_reflection(**reflection_args))
+            task = asyncio.create_task(self._run_ai_self_reflection(session))
             self.background_tasks.add(task)
             task.add_done_callback(self.background_tasks.discard)
 
-            progress_callback(100, "Готово!")
             logger.info("--- СЦЕНАРИЙ АВТОНОМНОЙ ОПТИМИЗАЦИИ УСПЕШНО ЗАВЕРШЕН ---")
-            return final_report
-
+            return session.get("final_report", "Оптимизация завершена. Отчет не был создан.")
+        except asyncio.CancelledError:
+            logger.info("Сценарий оптимизации отменен пользователем.")
+            return "Отменено пользователем."
         except Exception as e:
             logger.critical(f"Критическая ошибка в сценарии оптимизации: {e}", exc_info=True)
             raise
 
-    # <--- ИЗМЕНЕНИЕ: Добавлен новый метод для грациозного завершения
-    async def shutdown(self, **kwargs): # <--- ИЗМЕНЕНИЕ
-        """
-        Грациозно завершает работу ядра, дожидаясь выполнения фоновых задач.
-        Принимает и игнорирует любые ключевые аргументы для совместимости.
-        """
+    async def _step_create_restore_point(self, progress_callback: Callable[[int, str], None]):
+        progress_callback(5, "Создание точки восстановления...")
+        try:
+            await asyncio.to_thread(self.windows_optimizer.create_restore_point)
+            logger.info("Точка восстановления успешно создана.")
+            progress_callback(10, "Точка восстановления создана.")
+        except Exception as e:
+            logger.error(f"Не удалось создать точку восстановления: {e}", exc_info=True)
+            raise RuntimeError(f"Не удалось создать точку восстановления. {e}")
+
+    async def _step_profile_user(self, session: OptimizationSessionData, progress_callback: Callable[[int, str], None]):
+        progress_callback(15, "Анализ вашего стиля работы...")
+        session['system_profile'] = await self.user_profiler.get_system_profile()
+        
+        user_profiler_config = self.knowledge_base.get('user_profiler_config', {})
+        session['user_profile'] = await self.ai_communicator.determine_user_profile(
+            session['system_profile'], user_profiler_config
+        )
+        profiles_str = ", ".join(session['user_profile'])
+        logger.info(f"ИИ определил профили пользователя: {profiles_str}")
+        progress_callback(25, f"Обнаружены профили: {profiles_str}.")
+
+    async def _step_standard_cleanup(self, session: OptimizationSessionData, progress_callback: Callable[[int, str], None]):
+        progress_callback(30, "Выполнение стандартной очистки...")
+        session['standard_cleanup_summary'] = await self.smart_cleaner.perform_standard_cleanup()
+        logger.info("Стандартная очистка завершена.")
+
+    async def _step_collect_data_for_ai(self, session: OptimizationSessionData, progress_callback: Callable[[int, str], None]):
+        progress_callback(40, "Сбор данных для ИИ-анализа...")
+        if self._cached_system_components and self._last_scan_time and \
+           (datetime.now() - self._last_scan_time) < timedelta(minutes=self.CACHE_TTL_MINUTES):
+            logger.info("Использование кэшированных данных о компонентах системы.")
+            components_task = asyncio.create_task(asyncio.sleep(0, result=self._cached_system_components))
+        else:
+            logger.info("Кэш устарел или отсутствует. Запуск полного сканирования компонентов.")
+            components_task = self.windows_optimizer.get_system_components()
+            self._last_scan_time = datetime.now()
+        junk_files_task = self.smart_cleaner.find_junk_files_deep()
+        components, junk_files = await asyncio.gather(components_task, junk_files_task)
+        self._cached_system_components = components
+        session['system_components'] = components
+        session['junk_files_report'] = junk_files
+        logger.info(f"Сбор данных для ИИ завершен.")
+
+    async def _step_execute_full_cleanup(self, session: OptimizationSessionData):
+        logger.info("Начало комплексной очистки системы...")
+        standard_cleanup_task = self.smart_cleaner.perform_standard_cleanup()
+        ai_cleanup_task = self.smart_cleaner.perform_deep_cleanup(session.get('ai_plan', {}).get("cleanup_plan", {}))
+        std_summary, ai_summary = await asyncio.gather(standard_cleanup_task, ai_cleanup_task)
+        session['standard_cleanup_summary'] = std_summary
+        session['ai_cleanup_summary'] = ai_summary
+        logger.info("Стандартная и интеллектуальная очистка завершены.")
+        logger.info("Запуск очистки пустых директорий...")
+        session['empty_folders_summary'] = await self.smart_cleaner.cleanup_all_empty_folders_async()
+        logger.info(f"Удалено {session['empty_folders_summary']['deleted_folders_count']} пустых папок.")
+
+    async def _step_execute_action_plan(self, session: OptimizationSessionData, progress_callback: Callable[[int, str], None]):
+        logger.info("Применение оптимизаций системы...")
+        action_plan = session.get('ai_plan', {}).get("action_plan", [])
+        if not action_plan:
+            logger.info("Действий по оптимизации компонентов не требуется.")
+            session['debloat_summary'] = {"completed": [], "failed": []}
+            return
+        session['debloat_summary'] = await self.windows_optimizer.execute_action_plan(action_plan, progress_callback)
+        logger.info("План оптимизации компонентов выполнен.")
+
+    async def _step_generate_ai_plan(self, session: OptimizationSessionData, progress_callback: Callable[[int, str], None]):
+        progress_callback(55, "ИИ создает персональный план оптимизации...")
+        session['comprehensive_data'] = {
+            "system_components": session['system_components'],
+            "junk_files_report": session['junk_files_report']
+        }
+        
+        user_profile = session['user_profile']
+        relevant_kb = self._filter_kb_for_profile(user_profile)
+        
+        session['ai_plan'] = await self.ai_analyzer.generate_distillation_plan(
+            session['comprehensive_data'], user_profile, relevant_kb
+        )
+        logger.info("План от ИИ успешно сгенерирован и валидирован.")
+
+    def _filter_kb_for_profile(self, profiles: List[str]) -> Dict[str, Any]:
+        """Фильтрует полную базу знаний, оставляя только релевантные для профиля правила."""
+        filtered_kb = {}
+        
+        opt_rules = self.knowledge_base.get('optimization_rules', [])
+        
+        # ### ИЗМЕНЕНИЕ: Логика фильтрации для нескольких профилей ###
+        filtered_kb['optimization_rules'] = [
+            rule for rule in opt_rules
+            # Правило подходит, если у него нет списка профилей (универсальное)
+            if not rule.get('relevant_profiles') or
+            # или если ХОТЯ БЫ ОДИН из профилей пользователя есть в списке правила
+            any(p in rule.get('relevant_profiles', []) for p in profiles)
+        ]
+        
+        filtered_kb['cleanup_rules'] = self.knowledge_base.get('cleanup_rules', [])
+        filtered_kb['telemetry_domains'] = self.knowledge_base.get('telemetry_domains', [])
+        
+        logger.debug(f"База знаний отфильтрована для профилей {profiles}. "
+                     f"Осталось {len(filtered_kb['optimization_rules'])} правил оптимизации.")
+        return filtered_kb
+        
+    async def _step_cleanup_empty_folders(self, session: OptimizationSessionData, progress_callback: Callable[[int, str], None]):
+        progress_callback(90, "Поиск и удаление пустых папок...")
+        session['empty_folders_summary'] = await self.smart_cleaner.cleanup_all_empty_folders_async()
+        logger.info(f"Удалено {session['empty_folders_summary']['deleted_folders_count']} пустых папок.")
+
+    async def _step_generate_final_report(self, session: OptimizationSessionData, progress_callback: Callable[[int, str], None]):
+        progress_callback(95, "Формирование отчета...")
+        total_cleaned_bytes = (session.get('standard_cleanup_summary', {}).get('cleaned_size_bytes', 0) + 
+                               session.get('ai_cleanup_summary', {}).get('cleaned_size_bytes', 0))
+        session['final_summary'] = {
+            "debloat": session.get('debloat_summary', {}),
+            "cleanup": {"cleaned_size_bytes": total_cleaned_bytes},
+            "empty_folders": session.get('empty_folders_summary', {})
+        }
+        action_plan = session.get('ai_plan', {}).get("action_plan", [])
+        session['final_report'] = await self.ai_communicator.generate_final_report(
+            session['final_summary'], action_plan, session['user_profile']
+        )
+        progress_callback(100, "Готово!")
+
+    async def shutdown(self, **kwargs):
         if not self.background_tasks:
             logger.info("Нет активных фоновых задач для завершения.")
             return
-
         logger.info(f"Ожидание завершения {len(self.background_tasks)} фоновых задач...")
-        tasks_to_wait = list(self.background_tasks)
-        try:
-            await asyncio.gather(*tasks_to_wait, return_exceptions=True)
-            logger.info("Все фоновые задачи успешно завершены.")
-        except Exception as e:
-            logger.error(f"Произошла ошибка при ожидании завершения фоновых задач: {e}", exc_info=True)
+        await asyncio.gather(*self.background_tasks, return_exceptions=True)
+        logger.info("Все фоновые задачи успешно завершены.")
+
+def _check_cancellation(is_cancelled: Callable[[], bool]):
+    """Вспомогательная функция для проверки отмены и выброса исключения."""
+    if is_cancelled():
+        raise asyncio.CancelledError

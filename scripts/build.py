@@ -1,97 +1,116 @@
 # scripts/build.py
 """
-Скрипт для сборки WinSpector Pro с помощью PyInstaller.
+Профессиональный скрипт для сборки WinSpector Pro с помощью PyInstaller.
 
-Этот скрипт автоматизирует процесс сборки, обеспечивая консистентность
-и упрощая создание исполняемого файла. Он корректно включает все
-необходимые файлы данных, "вшивает" информацию о версии и позволяет
-гибко настраивать процесс сборки.
+Этот скрипт выполняет полный цикл сборки:
+1. Компилирует ресурсы Qt (.qrc -> .py).
+2. Динамически генерирует .spec файл из шаблона.
+3. Запускает PyInstaller с сгенерированным .spec файлом.
+4. Создает готовый к распространению ZIP-архив.
+5. Поддерживает флаги для отладочной и релизной сборок.
 """
-
 import os
 import shutil
 import subprocess
 import sys
-import re  # ### ИЗМЕНЕНИЕ: Импортируем модуль для регулярных выражений
+import re
+import logging
 from pathlib import Path
+import argparse
 
-# --- ГЛАВНАЯ КОНФИГУРАЦИЯ СБОРКИ ---
+# --- 1. НАСТРОЙКА ЛОГИРОВАНИЯ ---
+logging.basicConfig(
+    level=logging.INFO,
+    format="[%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler("build.log", mode='w', encoding='utf-8'),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
 
-# 1. Основные параметры приложения
+# --- 2. ГЛАВНАЯ КОНФИГУРАЦИЯ ---
 APP_NAME = "WinSpectorPro"
 ENTRY_POINT = "src/main.py"
-
-# 2. Пути (рассчитываются автоматически)
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
-ENTRY_POINT_PATH = PROJECT_ROOT / ENTRY_POINT
 DIST_PATH = PROJECT_ROOT / "dist"
 BUILD_PATH = PROJECT_ROOT / "build"
 ICON_PATH = PROJECT_ROOT / "assets" / "app.ico"
 
-# ### ИЗМЕНЕНИЕ: Более надежный способ получить версию
 def get_project_version() -> str:
     """Читает версию из __init__.py с помощью регулярного выражения."""
     init_py_path = PROJECT_ROOT / "src" / "winspector" / "__init__.py"
     try:
-        with open(init_py_path, "r", encoding="utf-8") as f:
-            content = f.read()
+        content = init_py_path.read_text(encoding="utf-8")
         match = re.search(r"^__version__\s*=\s*['\"]([^'\"]*)['\"]", content, re.M)
         if match:
             return match.group(1)
         raise RuntimeError("Не удалось найти __version__ в файле.")
     except FileNotFoundError:
-        print(f"❌ Ошибка: Не удалось найти {init_py_path} для определения версии.")
+        logging.error(f"❌ Ошибка: Не удалось найти {init_py_path} для определения версии.")
         sys.exit(1)
     except RuntimeError as e:
-        print(f"❌ Ошибка: {e}")
+        logging.error(f"❌ Ошибка: {e}")
         sys.exit(1)
 
 APP_VERSION = get_project_version()
 
-# 3. Файлы данных для включения в .exe
-# Формат: ("относительный/путь/к/файлу", "путь/назначения/внутри/exe")
-DATA_TO_INCLUDE = [
-    # Системные данные (уже есть)
-    (PROJECT_ROOT / "src/winspector/data/knowledge_base.yaml", "winspector/data"),
-    (PROJECT_ROOT / "src/winspector/data/telemetry_domains.txt", "winspector/data"),
-    
-    # --- ИЗМЕНЕНИЕ: Добавляем папку со стилями ---
-    (PROJECT_ROOT / "src/winspector/resources/styles", "winspector/resources/styles"),
-    
-    # --- ИЗМЕНЕНИЕ: Добавляем папку с ассетами (иконки, картинки) ---
-    (PROJECT_ROOT / "assets", "assets"),
-]
+# Конфигурация для .spec файла
+SPEC_CONFIG = {
+    "datas": [
+        ("src/winspector/data/knowledge_base", "winspector/data/knowledge_base"),
+        ("src/winspector/resources/styles", "winspector/resources/styles"),
+        ("assets", "assets"),
+    ],
+    "hiddenimports": [
+        "pygments", "google.generativeai.protos", "grpc._cython", "qasync",
+        "PyQt6.sip", "PyQt6.Qt6", "PyQt6.QtGui", "PyQt6.QtWidgets", "PyQt6.QtCore",
+    ],
+    "excludes": [
+        "pytest", "PyQt5", "PySide6", "tkinter", "unittest", "pydoc", "pydoc_data",
+    ]
+}
 
-# 4. Продвинутые опции PyInstaller
-# Скрытые импорты, которые PyInstaller может не найти автоматически
-HIDDEN_IMPORTS = [
-    "pygments",  # Часто нужен для форматирования вывода
-    "google.generativeai.protos",
-    "grpc._cython",  # ### ИЗМЕНЕНИЕ: Важно для google-generativeai
-    "qasync",
-    # ### ИЗМЕНЕНИЕ: Явное указание необходимых плагинов PyQt6
-    "PyQt6.sip",
-    "PyQt6.Qt6",
-    "PyQt6.QtGui",
-    "PyQt6.QtWidgets",
-    "PyQt6.QtCore",
-]
+# --- 3. ФУНКЦИИ-ПОМОЩНИКИ ---
 
-# Модули, которые нужно исключить для уменьшения размера сборки
-MODULES_TO_EXCLUDE = [
-    "pytest",
-    "PyQt5",
-    "PySide6",
-    "tkinter",
-    "unittest",
-    "pydoc",
-    "pydoc_data",
-]
+def run_command(command: list, description: str):
+    """Выполняет команду и логирует ее вывод, принудительно используя UTF-8."""
+    logging.info(f"Начало: {description}...")
+    try:
+        # ### УЛУЧШЕНИЕ: Создаем копию переменных окружения и устанавливаем кодировку ###
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        
+        # ### ИЗМЕНЕНИЕ: Убираем text=True и encoding, будем декодировать вручную ###
+        process = subprocess.run(
+            command, check=True, capture_output=True, env=env
+        )
+        
+        # Декодируем вывод с игнорированием ошибок на всякий случай
+        stdout = process.stdout.decode('utf-8', errors='ignore')
+        stderr = process.stderr.decode('utf-8', errors='ignore')
 
-# --- КОНЕЦ КОНФИГУРАЦИИ ---
+        if stdout:
+            logging.info(stdout)
+        if stderr:
+            logging.warning(stderr) # Логируем stderr как предупреждение
 
+        logging.info(f"Успешно: {description}.")
 
-def get_version_file_info():
+    except subprocess.CalledProcessError as e:
+        logging.error(f"❌ ОШИБКА: {description} завершился с ошибкой.")
+        # Декодируем вывод из исключения тоже
+        stdout = e.stdout.decode('utf-8', errors='ignore')
+        stderr = e.stderr.decode('utf-8', errors='ignore')
+        if stdout:
+            logging.error(stdout)
+        if stderr:
+            logging.error(stderr)
+        sys.exit(1)
+    except FileNotFoundError:
+        logging.error(f"❌ Ошибка: Команда '{command[0]}' не найдена. Убедитесь, что она установлена и доступна в PATH.")
+        sys.exit(1)
+
+def get_version_file_info() -> Path:
     """Создает временный файл с информацией о версии для Windows."""
     version_file_content = f"""
 # UTF-8
@@ -113,109 +132,120 @@ VSVersionInfo(
         u'040904B0',
         [StringStruct(u'CompanyName', u'CLC corporation'),
         StringStruct(u'FileDescription', u'WinSpector Pro - AI-Powered Windows Optimizer'),
-        StringStruct(u'FileVersion', u'{APP_VERSION}'), # <-- Берет новую версию
+        StringStruct(u'FileVersion', u'{APP_VERSION}'),
         StringStruct(u'InternalName', u'{APP_NAME}'),
         StringStruct(u'LegalCopyright', u'© CLC corporation. All rights reserved.'),
         StringStruct(u'OriginalFilename', u'{APP_NAME}.exe'),
         StringStruct(u'ProductName', u'WinSpector Pro'),
-        StringStruct(u'ProductVersion', u'{APP_VERSION}')]) # <-- Берет новую версию
+        StringStruct(u'ProductVersion', u'{APP_VERSION}')])
       ]), 
     VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
   ]
 )
 """
     version_file_path = BUILD_PATH / "version_info.txt"
-    with open(version_file_path, "w", encoding="utf-8") as f:
-        f.write(version_file_content)
-    print(f"📄 Информация о версии {APP_VERSION} создана.")
+    version_file_path.write_text(version_file_content, encoding="utf-8")
+    logging.info(f"📄 Информация о версии {APP_VERSION} создана.")
     return version_file_path
 
+def generate_spec_from_template(is_debug: bool, version_file_path: Path) -> Path:
+    """Динамически генерирует .spec файл из шаблона."""
+    template_path = PROJECT_ROOT / "build.spec.template"
+    spec_path = BUILD_PATH / f"{APP_NAME}.spec"
+    logging.info(f"Генерация файла спецификации из шаблона: {template_path}")
+
+    if not template_path.exists():
+        logging.error(f"❌ Шаблон '{template_path}' не найден!")
+        sys.exit(1)
+
+    template_content = template_path.read_text(encoding="utf-8")
+
+    datas_list = [
+        f"('{str(PROJECT_ROOT / src).replace(os.sep, '/')}', '{dest}')"
+        for src, dest in SPEC_CONFIG['datas']
+    ]
+
+    spec_content = template_content.format(
+        entry_point=(PROJECT_ROOT / ENTRY_POINT).as_posix(),
+        project_root=PROJECT_ROOT.as_posix(),
+        datas=",".join(datas_list),
+        hiddenimports=SPEC_CONFIG['hiddenimports'],
+        excludes=SPEC_CONFIG['excludes'],
+        app_name=APP_NAME,
+        debug='True' if is_debug else 'False',
+        console='True' if is_debug else 'False',
+        icon_path=ICON_PATH.as_posix(),
+        version_file_path=version_file_path.as_posix(),
+    )
+
+    spec_path.write_text(spec_content, encoding='utf-8')
+    logging.info(f"Файл спецификации сохранен: {spec_path}")
+    return spec_path
+
+def create_distribution_archive():
+    """Создает ZIP-архив из собранного приложения."""
+    # ### ИСПРАВЛЕНИЕ: Правильно указываем пути для архивации ###
+    
+    # Имя папки, которую создал PyInstaller внутри 'dist'
+    source_folder_name = APP_NAME 
+    # Путь к этой папке
+    source_path = DIST_PATH / source_folder_name
+    
+    # Имя для ZIP-архива без расширения
+    archive_name = f"{APP_NAME}-v{APP_VERSION}"
+    # Путь, где будет создан архив (на уровень выше, в самой папке dist)
+    archive_path_base = DIST_PATH / archive_name
+
+    logging.info(f"Создание архива: {archive_path_base}.zip")
+    
+    shutil.make_archive(
+        base_name=str(archive_path_base),
+        format='zip',
+        root_dir=str(DIST_PATH), # Указываем, что "корень" для архивации - это папка dist
+        base_dir=source_folder_name # Указываем, какую именно папку внутри root_dir нужно упаковать
+    )
+    logging.info("Архив успешно создан.")
 
 def main():
     """Основная функция сборки."""
-    # ### ИЗМЕНЕНИЕ: Проверка, что скрипт запущен из корня проекта
-    if not (PROJECT_ROOT / "src").exists() or not (PROJECT_ROOT / "scripts").exists():
-        print("❌ Ошибка: Пожалуйста, запускайте этот скрипт из корневой директории проекта.")
-        sys.exit(1)
-        
-    print(f"🚀 Начало сборки WinSpector Pro v{APP_VERSION}...")
+    parser = argparse.ArgumentParser(description="Скрипт сборки WinSpector Pro.")
+    parser.add_argument("--debug", action="store_true", help="Собрать консольную версию для отладки.")
+    parser.add_argument("--no-clean", action="store_true", help="Не удалять временные файлы после сборки.")
+    parser.add_argument("--no-archive", action="store_true", help="Не создавать ZIP-архив после сборки.")
+    args = parser.parse_args()
 
-    # 1. Очистка и подготовка
-    print("🧹 Очистка старых артефактов сборки...")
+    build_type = "DEBUG" if args.debug else "RELEASE"
+    logging.info(f"🚀 Начало сборки WinSpector Pro v{APP_VERSION} ({build_type})...")
+
+    # 1. Очистка
     if DIST_PATH.exists(): shutil.rmtree(DIST_PATH)
     if BUILD_PATH.exists(): shutil.rmtree(BUILD_PATH)
+    DIST_PATH.mkdir(exist_ok=True)
     BUILD_PATH.mkdir(exist_ok=True)
 
-    # 2. Создание файла с информацией о версии
+    # 2. Пред-сборочные шаги
+    run_command([sys.executable, "scripts/compile_resources.py"], "Компиляция файлов ресурсов Qt")
     version_file = get_version_file_info()
 
-    # 3. Формирование команды PyInstaller
-    command = [
-        sys.executable,
-        "-m", "PyInstaller",
-        "--noconfirm",
-        "--onefile",
-        "--windowed", # Используем --windowed для GUI-приложения
-        "--name", APP_NAME,
-        f"--distpath={DIST_PATH}",
-        f"--workpath={BUILD_PATH}",
-        f"--version-file={version_file}",
-    ]
+    # 3. Генерация .spec файла
+    spec_file = generate_spec_from_template(args.debug, version_file)
 
-    # Добавление иконки
-    if ICON_PATH.exists():
-        command.append(f"--icon={ICON_PATH}")
-    else:
-        print(f"⚠️ Иконка не найдена по пути: {ICON_PATH}. Сборка без иконки.")
-
-    # Добавление файлов данных
-    for src_path, dest_dir in DATA_TO_INCLUDE:
-        if src_path.exists():
-            # ### ИЗМЕНЕНИЕ: Используем os-специфичный разделитель
-            command.extend(["--add-data", f"{src_path}{os.pathsep}{dest_dir}"])
-        else:
-            print(f"❌ Ошибка: файл данных не найден: {src_path}. Сборка прервана.")
-            sys.exit(1)
-
-    # Добавление скрытых импортов
-    for module in HIDDEN_IMPORTS:
-        command.extend(["--hidden-import", module])
-        
-    # Исключение ненужных модулей
-    for module in MODULES_TO_EXCLUDE:
-        command.extend(["--exclude-module", module])
-
-    # Добавление точки входа
-    command.append(str(ENTRY_POINT_PATH))
-    
     # 4. Запуск PyInstaller
-    print("\n⚙️ Запуск PyInstaller...")
-    print("   " + " ".join(f'"{c}"' if " " in str(c) else str(c) for c in command))
+    run_command([sys.executable, "-m", "PyInstaller", str(spec_file), "--noconfirm"], 
+                "Сборка приложения с PyInstaller")
     
-    try:
-        # ### ИЗМЕНЕНИЕ: Убираем capture_output, чтобы избежать проблем с кодировкой в Windows
-        # Вывод PyInstaller будет отображаться в консоли в реальном времени.
-        subprocess.run(command, check=True)
-        print(f"\n✅ Сборка успешно завершена! ({DIST_PATH / (APP_NAME + '.exe')})")
-    except subprocess.CalledProcessError as e:
-        # Эта ошибка все еще может произойти, если PyInstaller вернет ненулевой код выхода
-        print("\n❌ Ошибка сборки! PyInstaller завершился с ошибкой.")
-        # Поскольку мы не захватывали вывод, он уже должен быть виден в консоли выше.
-        sys.exit(1)
-    except FileNotFoundError:
-        print("\n❌ Ошибка: PyInstaller не найден. Установите его: pip install pyinstaller")
-        sys.exit(1)
-    
-    # 5. Финальная очистка
-    print("\n✨ Финальная очистка...")
-    try:
-        shutil.rmtree(BUILD_PATH)
-        print(f"   - Временная папка '{BUILD_PATH}' удалена.")
-    except OSError as e:
-        print(f"   ⚠️ Не удалось удалить временную папку '{BUILD_PATH}': {e}")
+    # 5. Пост-сборочные шаги
+    if not args.no_archive:
+        create_distribution_archive()
 
-    print("\n🏁 Готово!")
+    # 6. Финальная очистка
+    if not args.no_clean:
+        logging.info("✨ Финальная очистка...")
+        if BUILD_PATH.exists(): shutil.rmtree(BUILD_PATH)
+        if spec_file.exists(): spec_file.unlink()
+        logging.info(f"   - Временные файлы удалены.")
 
+    logging.info("🏁 Готово!")
 
 if __name__ == "__main__":
     main()

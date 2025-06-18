@@ -1,0 +1,109 @@
+- domain: crash-reports.browser.yandex.net
+  description_ru: Отправка отчетов о сбоях браузера Yandex.
+  category: Crash Reporting
+  breakage_risk: low
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description accurately states the purpose of this domain.
+      It is indeed used by Yandex Browser to send crash reports, which is a common
+      practice for software improvement. There is no explicit recommendation given,
+      but understanding its function allows a user to make an informed and safe decision
+      regarding its network access (e.g., via firewall rules).
+- domain: appcenter.ms
+  description_ru: Отправка отчетов о сбоях Visual Studio Code.
+  category: Crash Reporting
+  breakage_risk: low
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.9
+    verification_comment: The description is accurate. 'appcenter.ms' is a Microsoft
+      service (App Center) that provides crash reporting capabilities, among other
+      things. Visual Studio Code, being a Microsoft product, can indeed utilize this
+      service for sending crash reports. Disabling such a feature (if that's the implied
+      recommendation) is generally safe, as it only affects telemetry/data collection,
+      not core functionality.
+- domain: telemetry.nvidia.com
+  description_ru: Телеметрия NVIDIA, связанная с компонентом NvContainerTelemetryApi.dll.
+  category: Telemetry
+  breakage_risk: low
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: The description accurately identifies 'telemetry.nvidia.com'
+      as an NVIDIA telemetry endpoint and correctly associates it with the 'NvContainerTelemetryApi.dll'
+      component, which is part of NVIDIA's telemetry collection system. Blocking this
+      domain typically only affects data collection, not core driver functionality.
+- domain: telemetry.amd.com
+  description_ru: Телеметрия программы AMD User Experience Program.
+  category: Telemetry
+  breakage_risk: low
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description is accurate. 'telemetry.amd.com' is indeed
+      used for collecting telemetry data as part of AMD's User Experience Program.
+      Blocking this domain is generally safe and primarily affects data collection,
+      not core system or driver functionality.
+- domain: vortex.data.microsoft.com
+  description_ru: Телеметрия и сбор диагностических данных Microsoft Edge WebView2,
+    связанных с флагами UKM, AI Tracker Classification, Edge Telemetry и UMA.
+  category: Telemetry
+  breakage_risk: low
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.95
+    verification_comment: The description accurately identifies 'vortex.data.microsoft.com'
+      as a key endpoint for Microsoft's telemetry and diagnostic data collection,
+      including aspects related to Edge, WebView2, and internal classification/usage
+      metrics (UKM, AI Tracker Classification, UMA). The statement itself does not
+      recommend any action, so there is no safety concern.
+- domain: settings-win.data.microsoft.com
+  description_ru: Сбор данных о настройках и использовании Windows/Edge WebView2,
+    связанных с флагами телеметрии.
+  category: Telemetry
+  breakage_risk: low
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description accurately identifies this domain as a telemetry
+      endpoint for Windows settings and Edge WebView2 usage data. There is no explicit
+      recommendation for action in the statement, only a description.
+- domain: variations.browser.yandex.net
+  description_ru: Сбор данных для A/B тестирования и конфигурации функций Yandex Browser,
+    указанный флагом --variations-seed-version.
+  category: Telemetry
+  breakage_risk: low
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.98
+    verification_comment: The description accurately reflects the purpose of 'variations.browser.yandex.net'.
+      This domain is indeed used by Yandex Browser (and similar mechanisms by other
+      Chromium-based browsers) for A/B testing, feature flagging, and dynamic configuration
+      updates. The `--variations-seed-version` flag is also correctly associated with
+      this process. While it involves data collection for testing, it's a standard
+      mechanism for browser development and feature rollout, and the statement itself
+      does not provide an unsafe recommendation.
+- domain: prod.telemetry.opinsights.azure.com
+  description_ru: Телеметрия Visual Studio Code, отправляемая в Azure Operational
+    Insights.
+  category: Telemetry
+  breakage_risk: low
+  provenance:
+    added_by: ai_suggestion_v3.8
+    verified_by: ai_peer_review
+    verification_confidence: 0.9
+    verification_comment: The domain 'prod.telemetry.opinsights.azure.com' is a legitimate
+      Microsoft Azure endpoint associated with Azure Monitor (formerly Operational
+      Insights), which is used for collecting telemetry and log data from various
+      Microsoft services. Visual Studio Code does send telemetry, and it is plausible
+      that this data, or a portion of it, is routed through or processed by services
+      utilizing this domain. Blocking it would prevent this specific telemetry from
+      being sent, which is safe and does not impact VS Code's core functionality.

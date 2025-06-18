@@ -1,0 +1,108 @@
+# build.spec.template
+
+# -*- mode: python ; coding: utf-8 -*-
+# =============================================================================
+#  PyInstaller Spec-файл для WinSpector Pro
+#  Этот файл является шаблоном, который заполняется скриптом build.py
+# =============================================================================
+import sys
+from pathlib import Path
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+
+# --- Переменные-заменители (заполняются из build.py) ---
+APP_NAME = '{app_name}'
+ENTRY_POINT = '{entry_point}'
+PROJECT_ROOT = Path('{project_root}')
+ICON_PATH = '{icon_path}'
+VERSION_FILE = '{version_file_path}'
+IS_DEBUG = {debug}
+IS_CONSOLE = {console}
+
+# --- Конфигурация сборки ---
+block_cipher = None
+
+# 1. Сборка данных: файлы и директории, которые нужно включить
+# =============================================================================
+# Используем Tree для рекурсивного включения целых директорий,
+# что более надежно для пакетов с множеством файлов данных.
+a_datas = [
+    # Ваши данные, которые будут заполнены из build.py
+    {datas}
+]
+# Добавляем данные, необходимые для google-generativeai
+a_datas += collect_data_files('google.generativeai')
+
+
+# 2. Скрытые импорты: модули, которые PyInstaller может не найти
+# =============================================================================
+a_hiddenimports = {hiddenimports}
+# Явно собираем все подмодули win32com, это надежнее, чем просто hook
+a_hiddenimports += collect_submodules('win32com')
+
+
+# 3. Исключения: модули, которые не нужно включать в сборку
+# =============================================================================
+a_excludes = {excludes}
+# Дополнительно исключаем модули, которые часто подтягиваются, но не нужны
+a_excludes += ['doctest', 'pdb', 'difflib', 'IPython', 'sqlite3']
+
+
+# 4. Анализ: основной блок, где PyInstaller анализирует зависимости
+# =============================================================================
+a = Analysis(
+    [ENTRY_POINT],
+    pathex=[str(PROJECT_ROOT)],
+    binaries=[],
+    datas=a_datas,
+    hiddenimports=list(a_hiddenimports),
+    hookspath=[], # Хуки для pywin32 теперь не нужны, так как мы собираем подмодули
+    runtime_hooks=[],
+    excludes=a_excludes,
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=block_cipher,
+    noarchive=False,
+)
+
+# 5. Сборка PYZ (архив с Python-модулями)
+# =============================================================================
+pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+
+# 6. Сборка EXE (исполняемый файл)
+# =============================================================================
+exe = EXE(
+    pyz,
+    a.scripts,
+    [],
+    exclude_binaries=True,
+    name=APP_NAME,
+    debug=IS_DEBUG,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=IS_CONSOLE,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    icon=ICON_PATH,
+    version=VERSION_FILE,
+)
+
+# 7. Сборка COLLECT (финальная директория)
+# =============================================================================
+# Используется для сборок в одну папку. Для --onefile этот блок
+# в основном определяет имя финальной директории в build.
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name=APP_NAME,
+)

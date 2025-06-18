@@ -8,4 +8,5 @@ pytest-mock
 pyinstaller
 ruff
 pre-commit
-pyqt6-tools  # <--- ДОБАВЛЕНО
+pyqt6-tools
+tenacity
