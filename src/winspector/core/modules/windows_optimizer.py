@@ -1,238 +1,376 @@
 # src/winspector/core/modules/windows_optimizer.py
 """
-Модуль для оптимизации Windows: собирает данные о службах и UWP-приложениях,
-а затем выполняет детальный план по их изменению.
+Сбор сведений о компонентах Windows и применение плана оптимизации.
+
+Все внешние команды запускаются списком аргументов при `shell=False`, а любой
+идентификатор перед подстановкой проверяется по строгому шаблону
+(`plan_validator.is_safe_identifier`). Даже если ответ модели окажется
+враждебным, он не сможет выйти за пределы имени службы.
 """
+
+from __future__ import annotations
+
 import asyncio
 import json
 import logging
-import subprocess
-import shlex
-from typing import List, Dict, Any, Callable, Optional, Set
-from concurrent.futures import ProcessPoolExecutor
-from datetime import datetime
 import os
-from pathlib import Path
+import subprocess
+from collections.abc import Callable
+from datetime import datetime
+from typing import Any
 
-# ### FIX: Import the necessary worker function ###
+from ..exceptions import RestorePointError
 from ..wmi_workers import get_services_worker
+from ..worker_pool import WorkerPool
+from .plan_validator import is_critical_service, is_critical_uwp, is_safe_identifier
 
 logger = logging.getLogger(__name__)
 
+_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+_PS_BASE = [
+    "powershell.exe",
+    "-NoProfile",
+    "-NonInteractive",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-Command",
+]
+
+DEFAULT_COMMAND_TIMEOUT = 120
+RESTORE_POINT_TIMEOUT = 300
+
+
+def _ps_quote(value: str) -> str:
+    """Экранирует строку для одинарных кавычек PowerShell."""
+    return value.replace("'", "''")
+
 
 class WindowsOptimizer:
-    """
-    Модуль для выполнения низкоуровневых оптимизаций Windows.
-    """
-    def __init__(self, optimization_rules: List[Dict]):
-        logger.info("Инициализация WindowsOptimizer (Advanced)...")
-        self.rules = optimization_rules
-        self._service_cache: Optional[Set[str]] = None
+    """Читает состав системы и выполняет одобренные действия."""
 
-    async def get_system_components(self) -> Dict[str, List[Dict]]:
-        """Собирает компоненты, делегируя вызовы воркерам."""
-        logger.info("Начало сбора данных о компонентах системы (службы, UWP).")
-        
-        loop = asyncio.get_running_loop()
-        with ProcessPoolExecutor(max_workers=1) as pool:
-            services_task = loop.run_in_executor(pool, get_services_worker)
-        
-        apps_task = self._collect_uwp_apps()
-        
-        services_result, apps_result = await asyncio.gather(services_task, apps_task, return_exceptions=True)
+    def __init__(
+        self,
+        optimization_rules: list[dict[str, Any]] | None = None,
+        worker_pool: WorkerPool | None = None,
+    ) -> None:
+        logger.info("Инициализация WindowsOptimizer...")
+        self.rules = optimization_rules or []
+        self._worker_pool = worker_pool or WorkerPool()
+        self._service_cache: set[str] | None = None
 
-        services = []
-        if isinstance(services_result, dict) and 'services' in services_result:
-            services = services_result['services']
-        elif isinstance(services_result, Exception):
-            logger.error(f"Ошибка при сборе служб: {services_result}", exc_info=services_result)
+    # --- Сбор данных ------------------------------------------------------
 
-        apps = []
-        if isinstance(apps_result, list):
+    async def get_system_components(self) -> dict[str, list[dict[str, Any]]]:
+        """Возвращает службы и UWP-приложения, пригодные для оптимизации."""
+        logger.info("Сбор данных о компонентах системы.")
+
+        services_result, apps_result = await asyncio.gather(
+            self._worker_pool.run(get_services_worker),
+            self._collect_uwp_apps(),
+            return_exceptions=True,
+        )
+
+        services: list[dict[str, Any]] = []
+        if isinstance(services_result, BaseException):
+            logger.error("Не удалось собрать службы: %s", services_result)
+        elif isinstance(services_result, dict):
+            if error := services_result.get("error"):
+                logger.error("Воркер WMI вернул ошибку: %s", error)
+            services = services_result.get("services") or []
+
+        apps: list[dict[str, Any]] = []
+        if isinstance(apps_result, BaseException):
+            logger.error("Не удалось собрать UWP-приложения: %s", apps_result)
+        elif isinstance(apps_result, list):
             apps = apps_result
-        elif isinstance(apps_result, Exception):
-            logger.error(f"Ошибка при сборе UWP-приложений: {apps_result}", exc_info=apps_result)
-            
-        logger.info(f"Сбор завершен. Найдено служб: {len(services)}, UWP-приложений: {len(apps)}.")
+
+        logger.info("Найдено служб: %d, UWP-приложений: %d.", len(services), len(apps))
         return {"services": services, "uwp_apps": apps}
 
-    async def _collect_uwp_apps(self) -> List[Dict]:
-        """Собирает список установленных UWP-приложений через PowerShell."""
-        command = (
-            'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "'
-            'Get-AppxPackage -AllUsers | '
-            'Where-Object {$_.IsFramework -eq $false -and $_.NonRemovable -eq $false} | '
-            'Select-Object Name, PackageFullName, IsFramework | '
-            'ConvertTo-Json -Compress"'
+    async def _collect_uwp_apps(self) -> list[dict[str, Any]]:
+        """Собирает список устанавливаемых UWP-пакетов через PowerShell."""
+        script = (
+            "Get-AppxPackage | "
+            "Where-Object { -not $_.IsFramework -and -not $_.NonRemovable } | "
+            "Select-Object Name, PackageFullName | "
+            "ConvertTo-Json -Compress -Depth 3"
         )
-        result = await asyncio.to_thread(
-            lambda: subprocess.run(command, capture_output=True, text=True, shell=True, check=False)
-        )
-        if result.returncode != 0 or not result.stdout:
-            logger.error(f"Ошибка при сборе UWP-приложений: {result.stderr}")
-            return []
-        try:
-            apps_data = json.loads(result.stdout)
-            if not isinstance(apps_data, list):
-                apps_data = [apps_data]
-            return [{"id": app.get("Name"), "package_full_name": app.get("PackageFullName")} for app in apps_data]
-        except json.JSONDecodeError:
-            logger.error("Не удалось распарсить JSON-ответ от PowerShell при сборе UWP.")
+        result = await self._run_powershell(script, timeout=DEFAULT_COMMAND_TIMEOUT)
+        if result is None or result.returncode != 0 or not result.stdout.strip():
+            logger.error(
+                "Не удалось получить список UWP-приложений: %s",
+                (result.stderr.strip() if result else "команда не выполнена"),
+            )
             return []
 
-    async def execute_action_plan(self, plan: List[Dict], progress_callback: Callable[[int, str], None]) -> Dict[str, List[Any]]:
+        try:
+            data = json.loads(result.stdout)
+        except json.JSONDecodeError:
+            logger.error("Некорректный JSON от PowerShell при сборе UWP.")
+            return []
+
+        if isinstance(data, dict):
+            data = [data]
+
+        apps: list[dict[str, Any]] = []
+        for entry in data:
+            if not isinstance(entry, dict):
+                continue
+            name = entry.get("Name")
+            if not name or is_critical_uwp(str(name)):
+                continue
+            apps.append({"id": name, "package_full_name": entry.get("PackageFullName")})
+        return apps
+
+    async def _cache_existing_services(self) -> None:
+        """Кеширует имена существующих служб, чтобы не выполнять лишние команды."""
+        result = await self._run_powershell(
+            "Get-Service | Select-Object -ExpandProperty Name",
+            timeout=DEFAULT_COMMAND_TIMEOUT,
+        )
+        if result is None or result.returncode != 0:
+            logger.error("Не удалось получить список служб для кеширования.")
+            self._service_cache = set()
+            return
+        self._service_cache = {
+            line.strip().lower() for line in result.stdout.splitlines() if line.strip()
+        }
+        logger.debug("Закешировано служб: %d.", len(self._service_cache))
+
+    # --- Выполнение плана -------------------------------------------------
+
+    async def execute_action_plan(
+        self,
+        plan: list[dict[str, Any]],
+        progress_callback: Callable[[int, str], None] | None = None,
+    ) -> dict[str, list[Any]]:
         """
-        Параллельно выполняет все действия из плана, собирая детальный отчет.
+        Выполняет действия из плана и возвращает отчёт.
+
+        Результаты сопоставляются с исходными пунктами явной парой
+        (пункт, команда), а не по индексу: пропущенные пункты иначе сдвигают
+        нумерацию и в отчёт попадают чужие записи.
         """
-        logger.info(f"Начало выполнения плана деблоатинга из {len(plan)} действий.")
-        summary = {"completed": [], "failed": []}
-        
+        summary: dict[str, list[Any]] = {"completed": [], "failed": [], "skipped": []}
         if not plan:
-            progress_callback(85, "Оптимизация системных компонентов не требуется.")
+            if progress_callback:
+                progress_callback(85, "Оптимизация компонентов не требуется.")
             return summary
 
+        logger.info("Выполнение плана из %d действий.", len(plan))
         await self._cache_existing_services()
 
-        tasks = []
+        runnable: list[tuple[dict[str, Any], list[str]]] = []
         for item in plan:
             command = self._generate_command_for_action(item)
-            if command:
-                tasks.append(self._run_single_command(item, command))
-        
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        for i, res in enumerate(results):
-            if res is None:
+            if command is None:
+                summary["skipped"].append(item)
                 continue
-            item = plan[i]
-            progress_callback(70 + int(15 * ((i + 1) / len(plan))), f"Завершено: {item.get('user_explanation_ru', item['id'])}")
-            if isinstance(res, Exception):
-                logger.error(f"Критическая ошибка при выполнении команды для '{item['id']}': {res}", exc_info=res)
-                summary["failed"].append({"item": item, "error": str(res)})
-            else:
-                summary[res["status"]].append(res["data"])
+            runnable.append((item, command))
 
-        progress_callback(85, "Оптимизация системных компонентов завершена.")
-        return summary
-    
-    async def _cache_existing_services(self):
-        """Получает и кэширует имена всех служб в системе."""
-        logger.debug("Кэширование списка существующих служб...")
-        command = 'powershell.exe -Command "Get-Service | Select-Object -ExpandProperty Name"'
-        result = await asyncio.to_thread(
-            lambda: subprocess.run(command, capture_output=True, text=True, shell=True, check=False)
+        if not runnable:
+            if progress_callback:
+                progress_callback(85, "Подходящих действий не найдено.")
+            return summary
+
+        results = await asyncio.gather(
+            *(self._run_single_command(item, cmd) for item, cmd in runnable),
+            return_exceptions=True,
         )
-        if result.returncode == 0:
-            self._service_cache = {name.lower() for name in result.stdout.splitlines()}
-        else:
-            logger.error("Не удалось получить список служб для кэширования.")
-            self._service_cache = set()
 
-    def _generate_command_for_action(self, item: Dict) -> Optional[List[str]]:
-        """Генерирует одну PowerShell команду в виде безопасного списка аргументов."""
+        total = len(runnable)
+        for index, (result, (item, _)) in enumerate(zip(results, runnable, strict=True), start=1):
+            if progress_callback:
+                label = item.get("user_explanation_ru") or item["id"]
+                progress_callback(70 + int(15 * index / total), f"Завершено: {label}")
+
+            if isinstance(result, BaseException):
+                logger.error("Ошибка выполнения для '%s': %s", item["id"], result)
+                summary["failed"].append({"item": item, "error": str(result)})
+            elif isinstance(result, dict):
+                summary[result["status"]].append(result["data"])
+
+        if progress_callback:
+            progress_callback(85, "Оптимизация компонентов завершена.")
+
+        logger.info(
+            "План выполнен: успешно %d, с ошибкой %d, пропущено %d.",
+            len(summary["completed"]),
+            len(summary["failed"]),
+            len(summary["skipped"]),
+        )
+        return summary
+
+    def _generate_command_for_action(self, item: dict[str, Any]) -> list[str] | None:
+        """
+        Строит команду PowerShell для одного действия.
+
+        Возвращает None, если действие нужно пропустить: неизвестный тип,
+        небезопасный идентификатор, критический компонент или отсутствующая
+        в системе служба.
+        """
         item_id = item.get("id")
         action = item.get("action")
         target_type = item.get("type")
 
-        if not all([item_id, action, target_type]):
+        if not (item_id and action and target_type):
             return None
 
-        if target_type == "service" and self._service_cache is not None:
-            if item_id.lower() not in self._service_cache:
-                logger.info(f"Пропуск действия для отсутствующей службы: '{item_id}'")
-                return None
+        # Барьер, дублирующий валидатор: модуль не доверяет вызывающей стороне.
+        if not is_safe_identifier(item_id):
+            logger.error("Отклонён небезопасный идентификатор: %r", item_id)
+            return None
 
-        script_block = ""
         if target_type == "service":
-            if action == "disable":
-                script_block = f"Stop-Service -Name '{item_id}' -Force -ErrorAction SilentlyContinue; Set-Service -Name '{item_id}' -StartupType Disabled"
-            elif action == "set_manual":
-                script_block = f"Set-Service -Name '{item_id}' -StartupType Manual"
-            elif action == "stop":
-                script_block = f"Stop-Service -Name '{item_id}' -Force"
-        
-        elif target_type == "uwp_app" and action == "remove":
-            pfn = item.get("package_full_name")
-            if pfn:
-                safe_pfn = pfn.replace("'", "''")
-                script_block = f"Get-AppxPackage -AllUsers -PackageFullName '{safe_pfn}' | Remove-AppxPackage -AllUsers"
-            else:
-                safe_item_id = item_id.replace("'", "''")
-                script_block = f"Get-AppxPackage -AllUsers -Name '*{safe_item_id}*' | Remove-AppxPackage -AllUsers"
-        
-        if script_block:
-            return ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script_block]
+            if is_critical_service(item_id):
+                logger.error("Отклонено действие над критической службой '%s'.", item_id)
+                return None
+            if self._service_cache is not None and item_id.lower() not in self._service_cache:
+                logger.info("Служба '%s' отсутствует в системе — пропуск.", item_id)
+                return None
+            return self._service_command(item_id, action)
+
+        if target_type == "uwp_app" and action == "remove":
+            if is_critical_uwp(item_id):
+                logger.error("Отклонено удаление системного пакета '%s'.", item_id)
+                return None
+            return self._uwp_command(item)
+
+        logger.debug("Действие '%s' для типа '%s' не поддержано.", action, target_type)
         return None
 
-    async def _run_single_command(self, item: Dict, command: List[str]) -> Dict[str, Any]:
-        """Асинхронно выполняет одну команду и возвращает результат."""
-        result = await asyncio.to_thread(
-            lambda: subprocess.run(command, capture_output=True, text=True, shell=False, check=False, encoding='utf-8', errors='ignore')
-        )
-        if result.returncode == 0:
-            logger.info(f"Успешно выполнено действие '{item['action']}' для '{item['id']}'.")
-            return {"status": "completed", "data": item}
-        else:
-            error_msg = result.stderr.strip() or "Неизвестная ошибка PowerShell"
-            logger.error(f"Ошибка при выполнении действия для '{item['id']}': {error_msg}")
-            return {"status": "failed", "data": {"item": item, "error": error_msg}}
-
-    def create_restore_point(self) -> None:
-        """
-        Создает точку восстановления системы через PowerShell, принудительно
-        включая необходимые службы, если они отключены.
-        """
-        system_drive = os.environ.get("SystemDrive", "C:")
-        description = f"WinSpector Pro Backup - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
-        
-        logger.info("Формирование и запуск команды PowerShell для создания точки восстановления.")
-        
-        script_block = f"""
-        $services = @("vss", "swprv")
-        $servicesToRestart = @{{}}
-        foreach ($serviceName in $services) {{
-            $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
-            if ($service -and $service.Status -ne "Running") {{
-                $servicesToRestart[$serviceName] = $service.StartType
-                try {{
-                    Set-Service -Name $serviceName -StartupType Automatic -ErrorAction Stop
-                    Start-Service -Name $serviceName -ErrorAction Stop
-                    Write-Host "Service '$serviceName' started."
-                }} catch {{
-                    Write-Warning "Failed to start service '$serviceName': $_"
-                }}
-            }}
-        }}
-        Checkpoint-Computer -Description '{description}' -RestorePointType 'MODIFY_SETTINGS'
-        foreach ($name in $servicesToRestart.Keys) {{
-            try {{
-                Set-Service -Name $name -StartupType $servicesToRestart[$name] -ErrorAction Stop
-                Write-Host "Service '$name' startup type restored to '$($servicesToRestart[$name])'."
-            }} catch {{
-                Write-Warning "Failed to restore startup type for service '$name': $_"
-            }}
-        }}
-        """
-        
-        command = f"powershell -ExecutionPolicy Bypass -NoProfile -Command \"{script_block}\""
-
-        try:
-            result = subprocess.run(
-                command, shell=True, capture_output=True, text=True, check=False,
-                encoding='utf-8', errors='ignore'
+    @staticmethod
+    def _service_command(item_id: str, action: str) -> list[str] | None:
+        name = _ps_quote(item_id)
+        if action == "disable":
+            script = (
+                f"Stop-Service -Name '{name}' -Force -ErrorAction SilentlyContinue; "
+                f"Set-Service -Name '{name}' -StartupType Disabled -ErrorAction Stop"
             )
-            if result.returncode == 0:
-                logger.info("Команда создания точки восстановления успешно выполнена.")
-            else:
-                error_output = result.stderr.strip()
-                if "не удалось создать" in error_output or "could not be created" in error_output:
-                    logger.error(f"Не удалось создать точку восстановления. Ошибка PowerShell: {error_output}")
-                    raise RuntimeError(f"Не удалось создать точку восстановления: {error_output}")
-                else:
-                    logger.warning(f"Команда создания точки восстановления завершилась с кодом {result.returncode}, но, возможно, успешно. Вывод: {error_output or result.stdout.strip()}")
-        except FileNotFoundError:
-            logger.error("Не удалось найти PowerShell. Убедитесь, что он установлен и доступен в PATH.")
-            raise
-        except Exception as e:
-            logger.error(f"Произошла ошибка при создании точки восстановления: {e}", exc_info=True)
-            raise
+        elif action == "set_manual":
+            script = f"Set-Service -Name '{name}' -StartupType Manual -ErrorAction Stop"
+        elif action == "stop":
+            script = f"Stop-Service -Name '{name}' -Force -ErrorAction Stop"
+        else:
+            return None
+        return [*_PS_BASE, script]
+
+    @staticmethod
+    def _uwp_command(item: dict[str, Any]) -> list[str] | None:
+        package_full_name = item.get("package_full_name")
+        if package_full_name and is_safe_identifier(package_full_name):
+            selector = f"-PackageFullName '{_ps_quote(package_full_name)}'"
+        else:
+            selector = f"-Name '{_ps_quote(item['id'])}'"
+        script = f"Get-AppxPackage {selector} | Remove-AppxPackage -ErrorAction Stop"
+        return [*_PS_BASE, script]
+
+    async def _run_powershell(
+        self, script: str, timeout: int
+    ) -> subprocess.CompletedProcess[str] | None:
+        """Выполняет PowerShell-скрипт без окна консоли и с ограничением времени."""
+        return await self._run_process([*_PS_BASE, script], timeout=timeout)
+
+    @staticmethod
+    async def _run_process(
+        command: list[str], timeout: int
+    ) -> subprocess.CompletedProcess[str] | None:
+        def _run() -> subprocess.CompletedProcess[str] | None:
+            try:
+                return subprocess.run(
+                    command,
+                    capture_output=True,
+                    text=True,
+                    shell=False,
+                    check=False,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=timeout,
+                    creationflags=_NO_WINDOW,
+                )
+            except subprocess.TimeoutExpired:
+                logger.error("Команда превысила лимит %d с: %s", timeout, command[:2])
+                return None
+            except (OSError, subprocess.SubprocessError) as exc:
+                logger.error("Не удалось выполнить команду %s: %s", command[:2], exc)
+                return None
+
+        return await asyncio.to_thread(_run)
+
+    async def _run_single_command(self, item: dict[str, Any], command: list[str]) -> dict[str, Any]:
+        """Выполняет одну команду и возвращает её результат."""
+        result = await self._run_process(command, timeout=DEFAULT_COMMAND_TIMEOUT)
+
+        if result is None:
+            return {
+                "status": "failed",
+                "data": {"item": item, "error": "Таймаут или сбой запуска команды"},
+            }
+        if result.returncode == 0:
+            logger.info("Выполнено '%s' для '%s'.", item["action"], item["id"])
+            return {"status": "completed", "data": item}
+
+        error = result.stderr.strip() or f"PowerShell завершился с кодом {result.returncode}"
+        logger.error("Ошибка действия для '%s': %s", item["id"], error)
+        return {"status": "failed", "data": {"item": item, "error": error}}
+
+    # --- Точка восстановления --------------------------------------------
+
+    async def create_restore_point(self) -> None:
+        """
+        Создаёт точку восстановления системы.
+
+        Raises:
+            RestorePointError: защита системы отключена или служба недоступна.
+                Отсутствие точки — не повод продолжать: без неё пользователь
+                не сможет откатить изменения.
+        """
+        description = f"WinSpector Pro - {datetime.now():%Y-%m-%d %H:%M}"
+        drive = os.environ.get("SystemDrive", "C:") + "\\"
+        script = f"""
+$ErrorActionPreference = 'Stop'
+try {{ Enable-ComputerRestore -Drive '{_ps_quote(drive)}' }} catch {{ }}
+foreach ($name in @('vss','swprv')) {{
+    try {{
+        $svc = Get-Service -Name $name -ErrorAction Stop
+        if ($svc.StartType -eq 'Disabled') {{ Set-Service -Name $name -StartupType Manual }}
+        if ($svc.Status -ne 'Running') {{ Start-Service -Name $name }}
+    }} catch {{ Write-Warning "service $name : $_" }}
+}}
+Checkpoint-Computer -Description '{_ps_quote(description)}' -RestorePointType 'MODIFY_SETTINGS'
+""".strip()
+
+        result = await self._run_powershell(script, timeout=RESTORE_POINT_TIMEOUT)
+
+        if result is None:
+            raise RestorePointError(
+                "Создание точки восстановления не завершилось за отведённое время."
+            )
+        if result.returncode == 0:
+            logger.info("Точка восстановления создана.")
+            return
+
+        error = (result.stderr or result.stdout or "").strip()
+
+        # Windows по умолчанию разрешает одну точку в сутки. Если свежая точка
+        # уже есть, откат пользователю доступен — это не повод прерывать работу.
+        frequency_markers = (
+            "1440",
+            "already",
+            "只能",
+            "частота",
+            "frequency",
+            "a restore point was created recently",
+        )
+        if any(marker.lower() in error.lower() for marker in frequency_markers):
+            logger.warning(
+                "Свежая точка восстановления уже существует, создание пропущено: %s",
+                error,
+            )
+            return
+
+        logger.error("Не удалось создать точку восстановления: %s", error)
+        raise RestorePointError(
+            "Не удалось создать точку восстановления. Проверьте, включена ли "
+            f"защита системы для диска {drive}. Подробности: {error}"
+        )

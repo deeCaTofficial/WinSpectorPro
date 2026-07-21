@@ -1,9 +1,11 @@
-# Main dependencies for WinSpector Pro
-qasync
-psutil
-pywin32
-wmi
-google-generativeai
-pyyaml
-python-dotenv
-async-lru
+# Основные зависимости WinSpector Pro.
+# Это файл требований верхнего уровня; requirements.txt генерируется командой
+#   pip-compile requirements.in
+PyQt6>=6.6
+qasync>=0.27
+psutil>=5.9
+pywin32>=306
+wmi>=1.5.1
+google-genai>=1.0
+pyyaml>=6.0
+python-dotenv>=1.0

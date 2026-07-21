@@ -29,8 +29,9 @@ a_datas = [
     # Ваши данные, которые будут заполнены из build.py
     {datas}
 ]
-# Добавляем данные, необходимые для google-generativeai
-a_datas += collect_data_files('google.generativeai')
+# Данные, необходимые google-genai (в т.ч. корневые сертификаты certifi)
+a_datas += collect_data_files('google.genai')
+a_datas += collect_data_files('certifi')
 
 
 # 2. Скрытые импорты: модули, которые PyInstaller может не найти
@@ -73,14 +74,17 @@ pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 exe = EXE(
     pyz,
     a.scripts,
+    a.binaries,
+    a.datas,
     [],
-    exclude_binaries=True,
     name=APP_NAME,
     debug=IS_DEBUG,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
     upx_exclude=[],
+    # В onefile-режиме PyInstaller распакует содержимое в системный
+    # временный каталог (%TEMP%\_MEIxxxxxx) и удалит его после завершения.
     runtime_tmpdir=None,
     console=IS_CONSOLE,
     disable_windowed_traceback=False,
@@ -90,19 +94,4 @@ exe = EXE(
     entitlements_file=None,
     icon=ICON_PATH,
     version=VERSION_FILE,
-)
-
-# 7. Сборка COLLECT (финальная директория)
-# =============================================================================
-# Используется для сборок в одну папку. Для --onefile этот блок
-# в основном определяет имя финальной директории в build.
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    name=APP_NAME,
 )

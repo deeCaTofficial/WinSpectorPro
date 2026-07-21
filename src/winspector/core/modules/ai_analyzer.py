@@ -1,374 +1,190 @@
 # src/winspector/core/modules/ai_analyzer.py
 """
-Модуль для взаимодействия с API Google Generative AI (Gemini).
-Отвечает за принятие интеллектуальных решений и генерацию планов.
+Генерация плана оптимизации с помощью Gemini.
+
+Модуль отвечает только за диалог с моделью: собрать промпт, получить
+структурированный ответ и передать его валидатору. Решение о том, что
+безопасно исполнять, принимает `plan_validator`, а не модель.
 """
 
-import os
+from __future__ import annotations
+
 import json
 import logging
-import time
-import hashlib
-import re
-import google.generativeai as genai
-from typing import Dict, Any, List, Tuple
+from typing import Any
 
+from ..exceptions import AIResponseError
 from .ai_base import AIBase
-from .ai_communicator import AICommunicator # Импортируем для _extract_json
+from .plan_validator import ALLOWED_ACTIONS, ALLOWED_TYPES, PlanValidator
 
 logger = logging.getLogger(__name__)
 
-class ContentBlockedError(Exception):
-    """Исключение, выбрасываемое, когда ответ от API заблокирован."""
-    def __init__(self, message, prompt_feedback):
-        super().__init__(message)
-        self.prompt_feedback = prompt_feedback
+# Поля базы знаний, бесполезные для модели. `provenance` содержит длинные
+# комментарии верификации — на 113 правилах это тысячи лишних токенов.
+_KB_FIELDS_TO_STRIP = ("provenance",)
 
-class _PlanValidator:
-    """Внутренний класс, инкапсулирующий всю логику валидации плана от ИИ."""
-    def __init__(self, full_kb: Dict[str, Any], user_profiles: List[str]):
-        self.user_profiles = user_profiles
-        self.optimization_rules = {rule['id'].lower(): rule for rule in full_kb.get('optimization_rules', [])}
-        self.cleanup_rules = {rule['category_id']: rule for rule in full_kb.get('cleanup_rules', [])}
-        
-        self.critical_items = {
-            id for id, rule in self.optimization_rules.items() if rule.get('safety') == 'critical'
-        }
-        self.profile_relevant_items = {
-            id for id, rule in self.optimization_rules.items()
-            if any(p in rule.get('relevant_profiles', []) for p in self.user_profiles)
-        }
+_SYSTEM_INSTRUCTION = (
+    "You are an expert Windows optimization engineer. You produce conservative, "
+    "reversible optimization plans. You never touch components required for the "
+    "system to boot, authenticate users, apply updates, or protect the machine. "
+    "When in doubt, you leave the component alone."
+)
 
-    def validate(self, plan: Dict) -> Dict:
-        """Проводит полную, многоуровневую валидацию плана."""
-        if not isinstance(plan, dict) or "action_plan" not in plan or "cleanup_plan" not in plan:
-            raise ValueError("План должен быть словарем с ключами 'action_plan' и 'cleanup_plan'.")
+# Схема ответа. `cleanup_decisions` — список, а не словарь: структурированный
+# вывод Gemini не поддерживает объекты с произвольными ключами.
+PLAN_RESPONSE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "action_plan": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "type": {"type": "string", "enum": sorted(ALLOWED_TYPES)},
+                    "id": {"type": "string"},
+                    "action": {"type": "string", "enum": sorted(ALLOWED_ACTIONS)},
+                    "package_full_name": {"type": "string"},
+                    "reason": {"type": "string"},
+                    "user_explanation_ru": {"type": "string"},
+                },
+                "required": ["type", "id", "action", "reason", "user_explanation_ru"],
+            },
+        },
+        "cleanup_decisions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "category_id": {"type": "string"},
+                    "clean": {"type": "boolean"},
+                    "reason": {"type": "string"},
+                },
+                "required": ["category_id", "clean"],
+            },
+        },
+    },
+    "required": ["action_plan", "cleanup_decisions"],
+}
 
-        plan["action_plan"] = self._validate_action_plan(plan.get("action_plan", []))
-        plan["cleanup_plan"] = self._validate_cleanup_plan(plan.get("cleanup_plan", {}))
-        
-        logger.info(f"Валидация плана завершена. Одобрено {len(plan['action_plan'])} действий.")
-        return plan
 
-    def _validate_action_plan(self, action_plan: List[Dict]) -> List[Dict]:
-        if not isinstance(action_plan, list):
-            raise ValueError(f"'action_plan' должен быть списком, а не {type(action_plan).__name__}.")
-
-        safe_actions = []
-        for action in action_plan:
-            if not isinstance(action, dict) or not {"type", "id", "action"}.issubset(action.keys()):
-                logger.warning(f"Пропуск некорректно сформированного действия в плане: {action}")
-                continue
-
-            item_id_lower = str(action["id"]).lower()
-            
-            # Уровень 1: Проверка на критичность
-            if item_id_lower in self.critical_items:
-                logger.warning(f"ОТКЛОНЕНО небезопасное действие над критическим компонентом: {action['id']}")
-                continue
-            
-            # Уровень 2: Проверка на релевантность профилю
-            # Запрещаем 'disable' или 'remove' для релевантных профилю служб
-            if action['action'] in ['disable', 'remove'] and item_id_lower in self.profile_relevant_items:
-                logger.warning(f"ОТКЛОНЕНО действие '{action['action']}' над компонентом '{action['id']}', "
-                               f"так как он важен для профилей {self.user_profiles}.")
-                continue
-            
-            safe_actions.append(action)
-        return safe_actions
-
-    # ### УЛУЧШЕНИЕ: Валидация плана очистки ###
-    def _validate_cleanup_plan(self, cleanup_plan: Dict) -> Dict:
-        """Валидирует план очистки с учетом профиля пользователя."""
-        if not isinstance(cleanup_plan, dict):
-            raise ValueError(f"'cleanup_plan' должен быть словарем, а не {type(cleanup_plan).__name__}.")
-        
-        safe_cleanup_plan = {}
-        for category_id, decision in cleanup_plan.items():
-            if not isinstance(decision, dict) or 'clean' not in decision:
-                logger.warning(f"Пропуск некорректной записи в cleanup_plan для '{category_id}'")
-                continue
-            
-            # Если ИИ решил не чистить, мы с этим соглашаемся
-            if not decision['clean']:
-                safe_cleanup_plan[category_id] = decision
-                continue
-
-            rule = self.cleanup_rules.get(category_id)
-            if not rule:
-                logger.warning(f"ИИ предложил очистку для неизвестной категории '{category_id}'. Отклонено.")
-                continue
-
-            # Проверяем безопасность для чувствительных профилей
-            is_sensitive_profile = any(p in ["Developer", "ContentCreator", "AudioEngineer"] for p in self.user_profiles)
-            
-            if rule.get('safety') == 'low' and is_sensitive_profile:
-                logger.warning(f"ОТКЛОНЕНА очистка '{category_id}' с низким уровнем безопасности для профиля {self.user_profiles}.")
-                safe_cleanup_plan[category_id] = {"clean": False}
-            else:
-                safe_cleanup_plan[category_id] = decision
-                
-        return safe_cleanup_plan
+def strip_kb_noise(rules: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Убирает служебные поля базы знаний перед отправкой модели."""
+    cleaned: list[dict[str, Any]] = []
+    for rule in rules:
+        if not isinstance(rule, dict):
+            continue
+        cleaned.append({k: v for k, v in rule.items() if k not in _KB_FIELDS_TO_STRIP})
+    return cleaned
 
 
 class AIAnalyzer(AIBase):
-    """
-    Основной AI-модуль, отвечающий за анализ данных и генерацию плана оптимизации.
-    """
-    def __init__(self, config: Dict[str, Any]):
-        super().__init__(config, model_name='gemini-2.0-flash')
+    """Формирует план оптимизации и передаёт его на валидацию."""
 
-    def _ping_api(self):
-        """Проверяет доступность API Gemini при инициализации."""
-        try:
-            timeout = self.config.get('ai_ping_timeout', 10)
-            logger.debug(f"Проверка доступности API Gemini с таймаутом {timeout}с...")
-            self.model.generate_content("ping", request_options={'timeout': timeout})
-        except Exception as e:
-            raise ConnectionError(f"Не удалось подключиться к API Gemini: {e}") from e
+    def _create_plan_prompt(
+        self,
+        system_data: dict[str, Any],
+        profiles: list[str],
+        knowledge_base: dict[str, Any],
+    ) -> str:
+        optimization_rules = strip_kb_noise(knowledge_base.get("optimization_rules") or [])
+        junk_categories = sorted((system_data.get("junk_files_report") or {}).keys())
 
-    # ### УЛУЧШЕНИЕ: Добавляем параметр generation_config ###
-    async def _get_response_with_cache(self, prompt: str, context: str, use_cache: bool = True, generation_config: Dict[str, Any] = None) -> str:
-        """Переопределяем метод для более строгой обработки ошибок и гибкой конфигурации."""
-        prompt_hash = hashlib.md5(prompt.encode('utf-8')).hexdigest()
-        if use_cache and (cached_response := self.cache.get(prompt_hash)):
-            response_text, timestamp = cached_response
-            if time.time() - timestamp < self.config.get('ai_cache_ttl', 3600):
-                logger.info(f"Использование кэшированного ответа для '{context}'.")
-                return response_text
+        return f"""
+Create a Windows optimization plan for a user with these profiles: {json.dumps(profiles)}.
 
-        logger.debug(f"Отправка нового запроса в ИИ. Контекст: {context}")
-        
-        # Устанавливаем конфигурацию генерации
-        gen_config = genai.types.GenerationConfig(**(generation_config or {}))
-        
-        response = await self.model.generate_content_async(prompt, generation_config=gen_config)
-        
-        if not response.parts:
-            logger.warning(f"Ответ от ИИ был заблокирован. Фидбек: {response.prompt_feedback}")
-            raise ContentBlockedError("Ответ от ИИ был заблокирован из-за настроек безопасности.", prompt_feedback=response.prompt_feedback)
+## Part 1 — action_plan
+Review `system_components` below and select non-essential services and UWP apps.
 
-        response_text = response.text
-        if use_cache:
-            self.cache[prompt_hash] = (response_text, time.time())
-        return response_text
+Rules:
+- Use `id` values EXACTLY as they appear in `system_components` (real service
+  names such as `MapsBroker`, not the labels used in the knowledge base).
+- Prefer `set_manual` over `disable`: it is reversible and lower risk.
+- Never propose actions on components required for boot, login, networking,
+  Windows Update, or security.
+- Skip anything that the user's profiles rely on.
+- For UWP apps include `package_full_name` when it is present in the data.
+- `user_explanation_ru` must be one short sentence in Russian, addressed to a
+  non-technical user.
+- An empty plan is a valid and correct answer when nothing is safe to change.
+
+## Part 2 — cleanup_decisions
+Provide one entry for EVERY category id listed below, and no others:
+{json.dumps(junk_categories, ensure_ascii=False)}
+
+Set `clean` to false when the data could matter to this user — for example
+package-manager and build caches for a Developer, or media caches for a
+ContentCreator. Otherwise set it to true.
+
+## KNOWLEDGE BASE (safety reference)
+{json.dumps(optimization_rules, indent=1, ensure_ascii=False)}
+
+## SYSTEM SNAPSHOT
+{json.dumps(system_data, indent=1, ensure_ascii=False, default=str)}
+""".strip()
 
     @staticmethod
-    def _extract_json_from_response(text: str) -> Dict:
-        """Надежно извлекает JSON объект из текстового ответа ИИ, удаляя обертку ```json."""
-        # Ищем блок JSON, который может быть заключен в ```json ... ```
-        match = re.search(r'```json\s*(\{.*\}|\[.*\])\s*```', text, re.DOTALL)
-        
-        # Если нашли блок в ```json, извлекаем его содержимое
-        if match:
-            json_text = match.group(1)
-        else:
-            # Если не нашли, предполагаем, что весь текст - это JSON
-            json_text = text
+    def _decisions_to_cleanup_plan(raw_plan: dict[str, Any]) -> dict[str, Any]:
+        """Преобразует список решений об очистке во внутренний формат-словарь."""
+        decisions = raw_plan.get("cleanup_decisions")
+        if decisions is None:
+            # Совместимость со старым форматом ответа.
+            return raw_plan.get("cleanup_plan") or {}
 
-        try:
-            return json.loads(json_text)
-        except json.JSONDecodeError as e:
-            logger.error(f"Не удалось распарсить JSON. Ошибка: {e}. Текст для парсинга: {json_text}")
-            raise ValueError(f"JSON-объект не найден или некорректен в ответе ИИ.") from e
+        if not isinstance(decisions, list):
+            raise AIResponseError("'cleanup_decisions' должен быть списком.")
 
-    # --- Методы для генерации промптов ---
-
-    def _create_profile_prompt(self, system_data: Dict, kb_config: Dict) -> str:
-        """Создает промпт для определения профиля пользователя."""
-        return f"""
-        Analyze the user's system data to determine their primary profile from 'Gamer', 'Developer', 'Designer', 'OfficeWorker', 'HomeUser'.
-        Base your decision on hardware specs, installed software keywords, and filesystem markers.
-        Respond with ONLY ONE word in a JSON object: {{"profile": "..."}}.
-        
-        Profiler Configuration (keywords to look for):
-        {json.dumps(kb_config, indent=2)}
-
-        System Data:
-        {json.dumps(system_data, indent=2, default=str)}
-        """
-
-    # ### УЛУЧШЕНИЕ: Более сфокусированный и чистый промпт ###
-    def _create_plan_prompt(self, system_data: Dict, profiles: List[str], kb: Dict) -> str:
-        """Создает промпт для генерации плана оптимизации."""
-        # Убираем лишние данные, чтобы сфокусировать ИИ на главном
-        relevant_kb_rules = kb.get('optimization_rules', [])
-        
-        return f"""
-        You are an expert Windows optimization engineer. Your task is to create a safe and effective optimization plan in a single, valid JSON object with two keys: "action_plan" and "cleanup_plan".
-
-        **1. Analyze System Components (for "action_plan"):**
-        - Review the `system_components` data.
-        - Based on the user profiles {json.dumps(profiles)}, identify non-essential services and UWP apps.
-        - Use the provided `KNOWLEDGE_BASE` to check for safety. NEVER suggest actions on items marked as 'critical'.
-        - Do not suggest actions on items relevant to the user's profiles.
-        - For each valid action, create an object for the "action_plan" list with keys: "type", "id", "action", "reason", "user_explanation_ru".
-
-        **2. Analyze Junk Files (for "cleanup_plan"):**
-        - Review the `junk_files_report`. Each key is a category to be cleaned.
-        - For EVERY category, create an entry in the "cleanup_plan" dictionary.
-        - Set the value to `{{"clean": true}}` if you are confident it is safe to clean for this user.
-        - Set it to `{{"clean": false}}` if it's risky (e.g., cleaning `python_pip_cache` for a 'Developer').
-
-        **USER PROFILES:** {json.dumps(profiles)}
-
-        **KNOWLEDGE BASE (Safety Rules):**
-        {json.dumps(relevant_kb_rules, indent=2)}
-
-        **SYSTEM SNAPSHOT (Data to Analyze):**
-        {json.dumps(system_data, indent=2, default=str)}
-
-        Respond with ONLY the JSON object.
-        """
-
-    def _create_report_prompt(self, summary: Dict, plan: List[Dict]) -> str:
-        """Создает промпт для генерации финального отчета."""
-        def format_bytes(b):
-            gb, mb, kb = b / (1024**3), b / (1024**2), b / 1024
-            if gb >= 1: return f"{gb:.2f} ГБ"
-            if mb >= 1: return f"{mb:.1f} МБ"
-            if kb >= 1: return f"{kb:.1f} КБ"
-            return f"{b} байт" if b > 0 else "0 байт"
-        
-        cleaned_size = format_bytes(summary.get("cleanup", {}).get("cleaned_size_bytes", 0))
-        debloat_summary = summary.get("debloat", {})
-        actions_performed_str = "\n".join([f"✅ {action['user_explanation_ru']}" for action in plan if action.get("user_explanation_ru")])
-
-        return f"""
-        You are "WinSpector AI Communicator". Your job is to create a friendly, encouraging report in Russian Markdown.
-        
-        CONTEXT:
-        The user has just completed a system optimization. The tone should be positive and celebratory. Use simple, clear language.
-        
-        METRICS:
-        - Space freed: {cleaned_size}
-        - Services disabled: {len(debloat_summary.get("disabled_services", []))}
-        - UWP apps removed: {len(debloat_summary.get("removed_apps", []))}
-        
-        ACTIONS PERFORMED:
-        {actions_performed_str}
-        
-        TASK:
-        Create a concise, well-formatted report in Russian Markdown with an encouraging headline, a summary of key metrics, a list of actions, and a reassuring closing statement. Use emojis (✅, 🚀, 💪).
-        """
-
-    def _create_suggestions_prompt(self, **kwargs) -> str:
-        """Создает промпт для генерации предложений по улучшению."""
-        # Этот промпт очень большой, для краткости предположим, что он формируется здесь
-        return f"""
-        You are "WinSpector AI Architect", a lead developer reviewing an optimization session.
-        Your goal is to suggest future improvements.
-        
-        SESSION ANALYSIS:
-        {json.dumps(kwargs, indent=2, ensure_ascii=False)}
-        
-        TASK:
-        Based on this session's data, suggest 3-5 concrete improvements for future versions.
-        Respond in Russian Markdown.
-        """
-
-    # --- Публичные методы API ---
-
-    async def determine_user_profile(self, system_data: Dict, kb_config: Dict) -> str:
-        """Определяет профиль пользователя."""
-        prompt = self._create_profile_prompt(system_data, kb_config)
-        response_text = await self._get_response_with_cache(prompt, "determine_user_profile")
-        try:
-            profile_data = self._extract_json_from_response(response_text)
-            profile = profile_data.get("profile", "HomeUser").strip()
-            logger.info(f"ИИ определил профиль как: {profile}")
-            return profile
-        except (json.JSONDecodeError, ValueError) as e:
-            logger.error(f"Не удалось определить профиль пользователя: {e}")
-            return "HomeUser"
-
-    async def generate_distillation_plan(self, system_data: Dict, profiles: List[str], kb: Dict) -> Dict:
-        """Генерирует и валидирует план оптимизации с помощью внутреннего валидатора."""
-        prompt = self._create_plan_prompt(system_data, profiles, kb)
-        
-        # ### УЛУЧШЕНИЕ: Используем строгую конфигурацию для получения JSON ###
-        generation_config = {
-            "temperature": 0.1,
-            "max_output_tokens": 8192,
-        }
-        
-        try:
-            response_text = await self._get_response_with_cache(
-                prompt, "generate_distillation_plan", 
-                use_cache=False, 
-                generation_config=generation_config
-            )
-            plan = AICommunicator._extract_json_from_response(response_text)
-            
-            validator = _PlanValidator(full_kb=kb, user_profiles=profiles)
-            safe_plan = validator.validate(plan)
-            
-            logger.debug("Получен и валидирован безопасный план от ИИ.")
-            return safe_plan
-        except ValueError as e:
-            logger.error(f"Не удалось распарсить или валидировать план от ИИ: {e}", exc_info=True)
-            raise RuntimeError("Не удалось получить корректный план от ИИ. Ответ был поврежден или невалиден.") from e
-        except ContentBlockedError as e:
-            logger.error(f"Не удалось сгенерировать план: {e}", exc_info=True)
-            raise RuntimeError("Не удалось сгенерировать план: ответ от ИИ был заблокирован.") from e
-
-    def _validate_plan(self, plan: Dict, kb: Dict) -> Dict:
-        """
-        Проводит строгую валидацию плана от ИИ.
-        Небезопасные действия удаляются из плана, а не вызывают ошибку.
-        Возвращает очищенный, безопасный план.
-        """
-        if not isinstance(plan, dict) or "action_plan" not in plan or "cleanup_plan" not in plan:
-            raise ValueError("План должен быть словарем с ключами 'action_plan' и 'cleanup_plan'.")
-
-        action_plan = plan.get("action_plan", [])
-        if not isinstance(action_plan, list):
-            raise ValueError(f"'action_plan' должен быть списком, а не {type(action_plan).__name__}.")
-
-        critical_services = {s.lower() for s in kb.get("absolutely_critical", {}).get("services", [])}
-        critical_uwp_apps = {a.lower() for a in kb.get("absolutely_critical", {}).get("uwp_apps", [])}
-
-        safe_actions = []
-        for action in action_plan:
-            # Проверяем базовую структуру
-            if not isinstance(action, dict) or not {"type", "id", "action"}.issubset(action.keys()):
-                logger.warning(f"Пропуск некорректно сформированного действия в плане: {action}")
+        cleanup_plan: dict[str, Any] = {}
+        for entry in decisions:
+            if not isinstance(entry, dict):
                 continue
+            category_id = entry.get("category_id")
+            if not category_id:
+                continue
+            cleanup_plan[str(category_id)] = {"clean": bool(entry.get("clean"))}
+        return cleanup_plan
 
-            # Проверяем на критичность
-            item_id_lower = str(action["id"]).lower()
-            is_unsafe = False
-            if action["type"] == "service" and item_id_lower in critical_services:
-                logger.warning(f"ОТКЛОНЕНО небезопасное действие над критической службой: {action['id']}")
-                is_unsafe = True
-            if action["type"] == "uwp_app" and item_id_lower in critical_uwp_apps:
-                logger.warning(f"ОТКЛОНЕНО небезопасное действие над критическим UWP-приложением: {action['id']}")
-                is_unsafe = True
-            
-            if not is_unsafe:
-                safe_actions.append(action)
+    async def generate_distillation_plan(
+        self,
+        system_data: dict[str, Any],
+        profiles: list[str],
+        knowledge_base: dict[str, Any],
+    ) -> dict[str, Any]:
+        """
+        Запрашивает план у модели и возвращает уже провалидированную версию.
 
-        # Обновляем план только безопасными действиями
-        plan["action_plan"] = safe_actions
-        
-        # Валидация cleanup_plan остается
-        cleanup_plan = plan.get("cleanup_plan", {})
-        if not isinstance(cleanup_plan, dict):
-            raise ValueError(f"'cleanup_plan' должен быть словарем, а не {type(cleanup_plan).__name__}.")
+        Raises:
+            AIError: если модель недоступна или вернула неразбираемый ответ.
+            ValueError: если структура плана принципиально некорректна.
+        """
+        prompt = self._create_plan_prompt(system_data, profiles, knowledge_base)
 
-        logger.info(f"Валидация плана завершена. Одобрено {len(safe_actions)} действий.")
-        return plan
+        raw_plan = await self._generate_json(
+            prompt,
+            context="generate_distillation_plan",
+            response_schema=PLAN_RESPONSE_SCHEMA,
+            system_instruction=_SYSTEM_INSTRUCTION,
+            temperature=0.1,
+            max_output_tokens=8192,
+            use_cache=False,
+        )
 
-    async def generate_final_report(self, summary: Dict, plan: List[Dict]) -> str:
-        """Генерирует финальный отчет для пользователя."""
-        logger.info("Генерация финального отчета.")
-        prompt = self._create_report_prompt(summary, plan)
-        return await self._get_response_with_cache(prompt, "generate_final_report", use_cache=False)
+        if not isinstance(raw_plan, dict):
+            raise AIResponseError(f"Ожидался объект плана, получен {type(raw_plan).__name__}.")
 
-    async def get_ai_suggestions_for_improvement(self, **kwargs) -> str:
-        """Анализирует сессию и предлагает улучшения для разработчиков."""
-        logger.info("Запрос к ИИ на саморефлексию и предложения по улучшению.")
-        prompt = self._create_suggestions_prompt(**kwargs)
-        # Этот запрос всегда должен быть свежим, не используем кэш
-        response = await self.model.generate_content_async(prompt)
-        return response.text
+        normalized = {
+            "action_plan": raw_plan.get("action_plan") or [],
+            "cleanup_plan": self._decisions_to_cleanup_plan(raw_plan),
+        }
+
+        validator = PlanValidator(
+            knowledge_base=knowledge_base,
+            user_profiles=profiles,
+            known_junk_categories=(system_data.get("junk_files_report") or {}).keys(),
+        )
+        safe_plan = validator.validate(normalized)
+
+        logger.info(
+            "План от ИИ получен и провалидирован: %d действий одобрено.",
+            len(safe_plan["action_plan"]),
+        )
+        return safe_plan

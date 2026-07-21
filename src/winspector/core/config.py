@@ -18,23 +18,57 @@ DEFAULT_USER_PROFILER_CONFIG = {
     # Помогают ИИ подтвердить профиль пользователя.
     "app_keywords": {
         "Gamer": [
-            "steam", "epic games", "gog galaxy", "battle.net", "origin",
-            "uplay", "geforce", "radeon", "discord", "obs studio", "msi afterburner"
+            "steam",
+            "epic games",
+            "gog galaxy",
+            "battle.net",
+            "origin",
+            "uplay",
+            "geforce",
+            "radeon",
+            "discord",
+            "obs studio",
+            "msi afterburner",
         ],
         "Developer": [
-            "visual studio", "vscode", "docker", "python", "java", "node.js",
-            "android studio", "pycharm", "jetbrains", "git", "kubernetes", "postman"
+            "visual studio",
+            "vscode",
+            "docker",
+            "python",
+            "java",
+            "node.js",
+            "android studio",
+            "pycharm",
+            "jetbrains",
+            "git",
+            "kubernetes",
+            "postman",
         ],
         "Designer": [
-            "photoshop", "illustrator", "figma", "sketch", "after effects",
-            "premiere pro", "blender", "autocad", "coreldraw", "cinema 4d"
+            "photoshop",
+            "illustrator",
+            "figma",
+            "sketch",
+            "after effects",
+            "premiere pro",
+            "blender",
+            "autocad",
+            "coreldraw",
+            "cinema 4d",
         ],
         "OfficeWorker": [
-            "office", "excel", "word", "powerpoint", "outlook", "teams",
-            "slack", "zoom", "1c", "sap"
+            "office",
+            "excel",
+            "word",
+            "powerpoint",
+            "outlook",
+            "teams",
+            "slack",
+            "zoom",
+            "1c",
+            "sap",
         ],
     },
-    
     # Файловые маркеры: ключевые папки, указывающие на определенный
     # тип деятельности. Пути указаны относительно %USERPROFILE%.
     "filesystem_markers": {
@@ -42,19 +76,16 @@ DEFAULT_USER_PROFILER_CONFIG = {
             "\\Steam\\steamapps",
             "\\Epic Games\\Launcher",
             "\\GOG Galaxy\\Games",
-            "\\Battle.net"
+            "\\Battle.net",
         ],
         "Developer": [
             "\\source\\repos",  # Visual Studio
             "\\.docker",
             "\\.vscode",
-            "\\JetBrains"
+            "\\JetBrains",
         ],
-        "Designer": [
-            "\\Creative Cloud Files",
-            "\\.figma"
-        ]
-    }
+        "Designer": ["\\Creative Cloud Files", "\\.figma"],
+    },
 }
 
 # Можно добавить другие резервные конфигурации здесь

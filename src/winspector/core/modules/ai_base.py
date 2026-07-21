@@ -1,129 +1,262 @@
 # src/winspector/core/modules/ai_base.py
 """
-Содержит базовый класс для взаимодействия с API Google Generative AI.
+Базовый класс для взаимодействия с Google Gemini через SDK `google-genai`.
 
-Этот класс инкапсулирует общую логику для всех модулей, работающих с ИИ:
-- Единоразовая конфигурация API.
-- Отправка запросов с обработкой ошибок.
-- Кеширование ответов.
-- Проверка доступности API.
+Инкапсулирует общую для всех ИИ-модулей логику:
+- единый переиспользуемый клиент на всё приложение;
+- запрос структурированного JSON через `response_schema` (SDK гарантирует
+  синтаксически валидный ответ, поэтому ручной «починки» JSON больше нет);
+- кеширование ответов с TTL;
+- повторные попытки при временных сбоях сети/сервера;
+- явные исключения вместо «тихого» возврата пустого результата.
 """
-import os
-import logging
-import time
+
+from __future__ import annotations
+
+import asyncio
 import hashlib
-import google.generativeai as genai
-from typing import Dict, Any, Tuple
+import json
+import logging
+import os
+import random
+import time
+from typing import Any, ClassVar
+
+from google import genai
+from google.genai import errors as genai_errors
+from google.genai import types
+
+from .. import credentials
+from ..exceptions import (
+    AIContentBlockedError,
+    AIResponseError,
+    AIUnavailableError,
+)
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_MODEL = "gemini-2.5-flash"
+
+# Приложение анализирует системные службы и пути к файлам. Штатные фильтры
+# иногда принимают такие данные за «опасный контент», поэтому фильтры
+# отключены: весь ввод формируется локально самим приложением.
+_SAFETY_SETTINGS = [
+    types.SafetySetting(category=category, threshold=types.HarmBlockThreshold.BLOCK_NONE)
+    for category in (
+        types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+        types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+        types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+    )
+]
 
 
 class AIBase:
     """
-    Базовый класс для работы с API Gemini.
-    Предоставляет общие методы для отправки запросов и кеширования.
+    Базовый класс для ИИ-модулей.
+
+    Клиент `genai.Client` создаётся один раз на процесс и переиспользуется:
+    он потокобезопасен и держит пул HTTP-соединений.
     """
-    
-    # Статическая переменная для отслеживания статуса конфигурации
-    _is_configured = False
 
-    def __init__(self, config: Dict[str, Any], model_name: str = 'gemini-2.0-flash'):
-        """
-        Инициализирует базовый клиент для работы с ИИ.
+    _client: ClassVar[genai.Client | None] = None
 
-        Args:
-            config: Словарь конфигурации приложения.
-            model_name: Имя модели Gemini, которую следует использовать.
-        """
-        self.config = config.get('app_config', {})
-        self.cache: Dict[str, Tuple[str, float]] = {}
-        
-        # Конфигурируем API только один раз за все время работы приложения
-        if not AIBase._is_configured:
-            api_key = os.getenv("GEMINI_API_KEY")
+    def __init__(self, config: dict[str, Any], model_name: str | None = None) -> None:
+        self.config: dict[str, Any] = config.get("app_config", {}) or {}
+        self.model_name: str = (
+            model_name or self.config.get("ai_model") or os.getenv("GEMINI_MODEL") or DEFAULT_MODEL
+        )
+        self._cache: dict[str, tuple[str, float]] = {}
+        logger.info("%s инициализирован (модель: %s).", self.__class__.__name__, self.model_name)
+
+    # --- Клиент -----------------------------------------------------------
+
+    @classmethod
+    def _get_client(cls) -> genai.Client:
+        """Лениво создаёт и возвращает общий клиент Gemini."""
+        if cls._client is None:
+            # Ключ ищется в окружении, а при его отсутствии — в защищённом
+            # хранилище, куда он попадает из окна настройки. Скачавшему
+            # программу пользователю не нужно создавать файлы вручную.
+            api_key = credentials.resolve_api_key()
             if not api_key:
-                raise ValueError("Переменная окружения 'GEMINI_API_KEY' не найдена.")
-            
-            genai.configure(api_key=api_key)
-            AIBase._is_configured = True
-            logger.info("API Google Generative AI успешно сконфигурирован.")
+                raise AIUnavailableError(
+                    "Ключ Gemini не найден. Укажите его в окне настройки ИИ "
+                    "или задайте переменную окружения GEMINI_API_KEY."
+                )
+            cls._client = genai.Client(api_key=api_key)
+            logger.info("Клиент Google Gemini успешно создан.")
+        return cls._client
 
-        # Выбираем модель, имя которой можно переопределить в дочернем классе
-        self.model = genai.GenerativeModel(model_name)
-        
-        # Проверяем доступность API при создании первого экземпляра
-        # В реальном приложении это можно делать лениво, чтобы не замедлять запуск
-        # self._ping_api() 
-        logger.info(f"{self.__class__.__name__} успешно инициализирован.")
+    @staticmethod
+    def has_api_key() -> bool:
+        """Есть ли настроенный ключ. Не обращается к сети."""
+        return credentials.has_api_key()
 
-    def _ping_api(self):
-        """Проверяет доступность API Gemini."""
+    @classmethod
+    def reset_client(cls) -> None:
+        """Сбрасывает общий клиент (используется в тестах и при смене ключа)."""
+        cls._client = None
+
+    async def ping(self) -> bool:
+        """Проверяет доступность API. Возвращает False вместо исключения."""
         try:
-            timeout = self.config.get('ai_ping_timeout', 10)
-            logger.debug(f"Проверка доступности API Gemini с таймаутом {timeout}с...")
-            self.model.generate_content("ping", request_options={'timeout': timeout})
-            logger.info("API Gemini доступен.")
-        except Exception as e:
-            raise ConnectionError(f"Не удалось подключиться к API Gemini: {e}") from e
+            await self._generate(
+                "ping",
+                context="ping",
+                use_cache=False,
+                max_output_tokens=8,
+                retries=0,
+            )
+            return True
+        except Exception as exc:
+            logger.warning("API Gemini недоступен: %s", exc)
+            return False
 
-    async def _get_response_with_cache(
-        self, prompt: str, context: str, use_cache: bool = True
+    # --- Запросы ----------------------------------------------------------
+
+    def _build_config(
+        self,
+        *,
+        temperature: float | None,
+        max_output_tokens: int | None,
+        response_schema: Any | None,
+        system_instruction: str | None,
+    ) -> types.GenerateContentConfig:
+        timeout_s = self.config.get("ai_request_timeout", 120)
+        return types.GenerateContentConfig(
+            temperature=temperature,
+            max_output_tokens=max_output_tokens,
+            safety_settings=_SAFETY_SETTINGS,
+            system_instruction=system_instruction,
+            # `response_schema` переводит модель в режим строгого JSON —
+            # ответ гарантированно разбирается `json.loads`.
+            response_mime_type="application/json" if response_schema else None,
+            response_schema=response_schema,
+            http_options=types.HttpOptions(timeout=int(timeout_s * 1000)),
+        )
+
+    def _cache_key(self, prompt: str, context: str) -> str:
+        raw = f"{self.model_name}|{context}|{prompt}"
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+    async def _generate(
+        self,
+        prompt: str,
+        context: str,
+        *,
+        use_cache: bool = True,
+        temperature: float | None = None,
+        max_output_tokens: int | None = None,
+        response_schema: Any | None = None,
+        system_instruction: str | None = None,
+        retries: int = 2,
     ) -> str:
         """
-        Отправляет запрос в ИИ, используя кеширование и обработку ошибок.
+        Отправляет запрос в Gemini и возвращает текст ответа.
 
-        Args:
-            prompt: Текст промпта для ИИ.
-            context: Контекст запроса для логирования.
-            use_cache: Использовать ли кеширование для этого запроса.
-
-        Returns:
-            Текстовый ответ от ИИ или пустой JSON-объект в случае ошибки.
+        Raises:
+            AIUnavailableError: сеть, таймаут, квота или ошибка сервера.
+            AIContentBlockedError: ответ отклонён фильтрами безопасности.
+            AIResponseError: пустой ответ или обрыв по лимиту токенов.
         """
-        prompt_hash = hashlib.md5(prompt.encode('utf-8')).hexdigest()
-        if use_cache and (cached_response := self.cache.get(prompt_hash)):
-            response_text, timestamp = cached_response
-            if time.time() - timestamp < self.config.get('ai_cache_ttl', 3600):
-                logger.info(f"Использование кэшированного ответа для '{context}'.")
-                return response_text
+        cache_key = self._cache_key(prompt, context)
+        if use_cache and (cached := self._cache.get(cache_key)):
+            text, created_at = cached
+            if time.monotonic() - created_at < self.config.get("ai_cache_ttl", 3600):
+                logger.info("Использован кешированный ответ для '%s'.", context)
+                return text
 
-        logger.debug(f"Отправка нового запроса в ИИ. Контекст: {context}")
-        
-        try:
-            # Настройки безопасности для генерации контента
-            # Можно вынести в config, если нужна гибкость
-            safety_settings = {
-                'HARM_CATEGORY_HARASSMENT': 'BLOCK_NONE',
-                'HARM_CATEGORY_HATE_SPEECH': 'BLOCK_NONE',
-                'HARM_CATEGORY_SEXUALLY_EXPLICIT': 'BLOCK_NONE',
-                'HARM_CATEGORY_DANGEROUS_CONTENT': 'BLOCK_NONE',
-            }
-            generation_config = genai.types.GenerationConfig(
-                # Увеличиваем максимальное количество токенов в ответе.
-                # Для Gemini 1.5 Flash это значение может быть очень большим.
-                max_output_tokens=65536
-            )
-            response = await self.model.generate_content_async(
-                prompt,
-                generation_config=generation_config,
-                safety_settings=safety_settings
-            )
-            
-            # Проверяем, был ли ответ заблокирован несмотря на настройки
-            if not response.parts:
-                logger.warning(
-                    f"Ответ от ИИ для '{context}' был заблокирован. "
-                    f"Причина: {response.prompt_feedback.block_reason}. "
-                    f"Рейтинги безопасности: {response.prompt_feedback.safety_ratings}"
+        config = self._build_config(
+            temperature=temperature,
+            max_output_tokens=max_output_tokens,
+            response_schema=response_schema,
+            system_instruction=system_instruction,
+        )
+        client = self._get_client()
+
+        last_error: Exception | None = None
+        for attempt in range(retries + 1):
+            try:
+                logger.debug("Запрос к ИИ (%s), попытка %d/%d.", context, attempt + 1, retries + 1)
+                response = await client.aio.models.generate_content(
+                    model=self.model_name, contents=prompt, config=config
                 )
-                return "{}"  # Возвращаем пустой JSON
+                text = self._extract_text(response, context)
+                if use_cache:
+                    self._cache[cache_key] = (text, time.monotonic())
+                return text
 
-            response_text = response.text
-            if use_cache:
-                self.cache[prompt_hash] = (response_text, time.time())
-            return response_text
+            except (AIContentBlockedError, AIResponseError):
+                # Повтор бессмысленен: проблема в самом запросе или в политике.
+                raise
+            except genai_errors.ClientError as exc:
+                # 4xx: неверный ключ, превышена квота, некорректный запрос.
+                raise AIUnavailableError(f"Запрос к Gemini отклонён ({context}): {exc}") from exc
+            except (genai_errors.ServerError, asyncio.TimeoutError, OSError) as exc:
+                last_error = exc
+                if attempt < retries:
+                    delay = 2**attempt + random.uniform(0, 0.5)
+                    logger.warning(
+                        "Временная ошибка Gemini (%s): %s. Повтор через %.1f с.",
+                        context,
+                        exc,
+                        delay,
+                    )
+                    await asyncio.sleep(delay)
 
-        except Exception as e:
-            logger.error(f"Ошибка при запросе к API Gemini для '{context}': {e}", exc_info=True)
-            # Возвращаем пустой JSON, чтобы вышестоящий код мог gracefully handle it
-            return "{}"
+        raise AIUnavailableError(
+            f"Не удалось получить ответ от Gemini ({context}) "
+            f"после {retries + 1} попыток: {last_error}"
+        ) from last_error
+
+    @staticmethod
+    def _extract_text(response: types.GenerateContentResponse, context: str) -> str:
+        """Достаёт текст из ответа, различая блокировку и обрыв генерации."""
+        feedback = getattr(response, "prompt_feedback", None)
+        block_reason = getattr(feedback, "block_reason", None)
+        if block_reason:
+            raise AIContentBlockedError(
+                f"Запрос '{context}' заблокирован фильтрами Gemini: {block_reason}.",
+                block_reason=block_reason,
+            )
+
+        candidates = getattr(response, "candidates", None) or []
+        if candidates:
+            finish_reason = getattr(candidates[0], "finish_reason", None)
+            if finish_reason == types.FinishReason.MAX_TOKENS:
+                raise AIResponseError(
+                    f"Ответ ИИ на '{context}' обрезан лимитом токенов. "
+                    "Увеличьте max_output_tokens или сократите объём данных."
+                )
+            if finish_reason == types.FinishReason.SAFETY:
+                raise AIContentBlockedError(
+                    f"Ответ ИИ на '{context}' отклонён фильтрами безопасности.",
+                    block_reason=finish_reason,
+                )
+
+        text = (getattr(response, "text", None) or "").strip()
+        if not text:
+            raise AIResponseError(f"Получен пустой ответ от ИИ для '{context}'.")
+        return text
+
+    async def _generate_json(
+        self,
+        prompt: str,
+        context: str,
+        *,
+        response_schema: Any,
+        **kwargs: Any,
+    ) -> Any:
+        """Запрашивает структурированный JSON и разбирает его."""
+        text = await self._generate(prompt, context, response_schema=response_schema, **kwargs)
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError as exc:
+            logger.error(
+                "Не удалось разобрать JSON от ИИ (%s): %s. Ответ: %.500s",
+                context,
+                exc,
+                text,
+            )
+            raise AIResponseError(f"ИИ вернул некорректный JSON для '{context}'.") from exc

@@ -1,15 +1,23 @@
 # debug_ui.py - ТЕСТ 2: Проверка NeuralBackgroundWidget
 
 import sys
-from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QStackedWidget, QStackedLayout, QFrame
-)
-from PyQt6.QtGui import QIcon
+
 from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (
+    QApplication,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QStackedLayout,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
 # --- Импортируем только РЕАЛЬНЫЙ фон ---
 from src.winspector.gui.widgets.neural_background import NeuralBackgroundWidget
+
 
 # --- ВИДЖЕТ-ЗАГЛУШКА для кнопки ---
 class PulsingButtonMock(QLabel):
@@ -18,6 +26,7 @@ class PulsingButtonMock(QLabel):
         self.setFixedSize(220, 220)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setStyleSheet("background-color: #0078D4; color: white; border-radius: 110px;")
+
 
 class DebugWindow(QMainWindow):
     def __init__(self):
@@ -62,7 +71,7 @@ class DebugWindow(QMainWindow):
         title.setStyleSheet("font-size: 32px; font-weight: 600; color: white;")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         main_layout.addWidget(title)
-        
+
         # 5. Стек для страниц
         self.stacked_widget = QStackedWidget()
         main_layout.addWidget(self.stacked_widget, 1)
@@ -77,15 +86,16 @@ class DebugWindow(QMainWindow):
     def _create_home_page(self) -> QWidget:
         page = QWidget()
         layout = QHBoxLayout(page)
-        
+
         # --- Используем ЗАГЛУШКУ для кнопки ---
         self.pulsing_button = PulsingButtonMock()
-        
+
         layout.addStretch()
         layout.addWidget(self.pulsing_button)
         layout.addStretch()
-        
+
         return page
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

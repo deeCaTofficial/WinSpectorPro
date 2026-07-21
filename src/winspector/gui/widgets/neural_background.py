@@ -1,36 +1,57 @@
 # src/winspector/gui/widgets/neural_background.py
 """
-Виджет для отображения анимированного фона в виде "нейронной сети".
-Создает эффект движущихся частиц, соединенных линиями, с параллаксом от мыши.
+Анимированный фон: частицы, соединённые линиями, с отталкиванием от курсора.
+
+Физика намеренно работает на обычных числах Python, а не на `QPointF`.
+Каждое обращение вида `point.x()` — это переход Python -> C++ через sip, и на
+150 частицах с несколькими проходами по кадру такие переходы складывались в
+основную стоимость анимации. Объекты Qt создаются только в момент отрисовки.
 """
+
 import math
 import random
-import sys
-from typing import List, Dict, Any, Optional
 
-from PyQt6.QtWidgets import QWidget, QPushButton, QApplication, QMainWindow
+from PyQt6.QtCore import QPoint, QPointF, QRectF, Qt, QTimer
 from PyQt6.QtGui import (
-    QPainter, QColor, QPen, QBrush, QPaintEvent, QResizeEvent, QShowEvent,
-    QMouseEvent, QPainterPath
+    QColor,
+    QMouseEvent,
+    QPainter,
+    QPainterPath,
+    QPaintEvent,
+    QPen,
+    QResizeEvent,
+    QShowEvent,
 )
-from PyQt6.QtCore import QTimer, QPointF, Qt, QRect, QRectF, pyqtSignal, QObject, QPropertyAnimation, QEasingCurve, QSequentialAnimationGroup, QPoint
+from PyQt6.QtWidgets import QWidget
 
 
 class Particle:
-    """Легковесный класс для хранения данных о частице."""
-    __slots__ = ('pos', 'vel', 'size', 'parallax_factor', 'mass')
-    
-    def __init__(self, pos: QPointF, vel: QPointF, size: float, parallax_factor: float, mass: float):
-        self.pos = pos
-        self.vel = vel
+    """Частица фона. Координаты и скорость — простые числа."""
+
+    __slots__ = ("mass", "parallax_factor", "size", "vx", "vy", "x", "y")
+
+    def __init__(
+        self,
+        x: float,
+        y: float,
+        vx: float,
+        vy: float,
+        size: float,
+        parallax_factor: float,
+        mass: float,
+    ) -> None:
+        self.x = x
+        self.y = y
+        self.vx = vx
+        self.vy = vy
         self.size = size
         self.parallax_factor = parallax_factor
         self.mass = mass
 
 
 class NeuralBackgroundWidget(QWidget):
-    """Анимированный фон с эффектом параллакса от движения мыши."""
-    
+    """Анимированный фон с эффектом отталкивания частиц от курсора."""
+
     PARTICLE_COUNT: int = 150
     CONNECTION_DISTANCE: float = 100.0
     BASE_SPEED: float = 0.25
@@ -39,7 +60,7 @@ class NeuralBackgroundWidget(QWidget):
     MAX_CONNECTIONS: int = 3
     CONNECTION_STICKINESS: float = 0.85
     CONNECTION_BREAK_FACTOR: float = 1.1
-    
+
     REPULSION_RADIUS: float = 100.0
     REPULSION_STRENGTH: float = 2.0
     WALL_REBOUND_FACTOR: float = 1.1
@@ -47,501 +68,489 @@ class NeuralBackgroundWidget(QWidget):
     CORNER_RADIUS: float = 20.0
     FADE_SPEED: float = 0.01
 
+    FRAME_INTERVAL_MS: int = 30
+
     BG_COLOR = QColor(33, 37, 43)
     PARTICLE_COLOR = QColor(82, 152, 215, 150)
     LINE_BASE_COLOR = QColor(82, 152, 215)
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    # Оттенок частиц и линий плавно колеблется. Непрерывный расчёт цвета на
+    # каждую частицу в каждом кадре — это тысячи вызовов QColor.fromHslF в
+    # секунду, поэтому оттенок квантуется и цвета берутся из таблицы.
+    _HUE_STEPS: int = 64
+    _BASE_HUE: float = 0.62
+    _HUE_RANGE: float = 0.08
+
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
-        
-        self.particles: List[Particle] = []
-        self.mouse_pos = QPointF(-1, -1) 
 
-        self.time_counter = 0
+        self.particles: list[Particle] = []
+        self.mouse_x: float = -1.0
+        self.mouse_y: float = -1.0
 
-        # Отслеживание активных и затухающих соединений.
-        # Храним (opacity, dist_sq) для оптимизации.
-        self.active_connections: Dict[tuple[int, int], tuple[float, float]] = {}
+        self.time_counter = 0.0
 
-        # Оптимизация: пространственная сетка для ускорения поиска соседей
-        self.grid: Dict[tuple[int, int], List[int]] = {}
+        # Активные и затухающие соединения: (i, j) -> (непрозрачность, dist^2).
+        self.active_connections: dict[tuple[int, int], tuple[float, float]] = {}
+
+        # Пространственная сетка вместо перебора всех пар частиц.
+        self.grid: dict[tuple[int, int], list[int]] = {}
         self.grid_cell_size: float = self.CONNECTION_DISTANCE
-        
-        # Предварительно рассчитанные значения для оптимизации
+
         self.connection_distance_sq: float = self.CONNECTION_DISTANCE**2
-        self.break_distance_sq: float = self.connection_distance_sq * (self.CONNECTION_BREAK_FACTOR**2)
+        self.break_distance_sq: float = self.connection_distance_sq * (
+            self.CONNECTION_BREAK_FACTOR**2
+        )
         self.min_speed_sq: float = self.MIN_SPEED**2
         self.max_speed_sq: float = self.MAX_SPEED**2
-        self.corner_centers: List[QPointF] = []
+        self.corner_centers: list[tuple[float, float]] = []
+
+        self._line_colors = self._build_palette(saturation=0.8, lightness=0.6)
+        self._particle_colors = self._build_palette(saturation=0.9, lightness=0.7, alpha=0.8)
 
         self.animation_timer = QTimer(self)
         self.animation_timer.timeout.connect(self.update_particles)
-        self.animation_timer.start(45)  # ~33 FPS
+        # Таймер намеренно не запускается здесь: до вызова start_animation
+        # он лишь будил бы приложение десятки раз в секунду впустую.
 
         self.setMouseTracking(True)
-
         self.is_animation_running = False
 
-    def _rand_float(self, min_val: float = 0.0, max_val: float = 1.0) -> float:
-        """Генерирует случайное число с плавающей точкой."""
-        return random.uniform(min_val, max_val)
+    # --- Палитра ----------------------------------------------------------
+
+    @classmethod
+    def _build_palette(
+        cls, saturation: float, lightness: float, alpha: float = 1.0
+    ) -> list[QColor]:
+        """Готовит таблицу цветов для всех оттенков колебания."""
+        return [
+            QColor.fromHslF(
+                cls._BASE_HUE + cls._HUE_RANGE * (2.0 * step / (cls._HUE_STEPS - 1) - 1.0),
+                saturation,
+                lightness,
+                alpha,
+            )
+            for step in range(cls._HUE_STEPS)
+        ]
+
+    @classmethod
+    def _hue_index(cls, oscillation: float) -> int:
+        """Переводит колебание из диапазона [-1, 1] в индекс таблицы цветов."""
+        index = int((oscillation + 1.0) * 0.5 * (cls._HUE_STEPS - 1))
+        return min(cls._HUE_STEPS - 1, max(0, index))
+
+    # --- Частицы ----------------------------------------------------------
 
     def _create_particle(self) -> Particle:
-        """Создает одну частицу со случайными параметрами."""
+        """Создаёт частицу со случайными параметрами."""
         size = random.uniform(2, 4.5)
         return Particle(
-            pos=QPointF(
-                self.width() * (0.05 + 0.9 * self._rand_float()),
-                self.height() * (0.05 + 0.9 * self._rand_float())
-            ),
-            vel=QPointF(
-                self._rand_float(-self.BASE_SPEED, self.BASE_SPEED),
-                self._rand_float(-self.BASE_SPEED, self.BASE_SPEED)
-            ),
+            x=self.width() * (0.05 + 0.9 * random.random()),
+            y=self.height() * (0.05 + 0.9 * random.random()),
+            vx=random.uniform(-self.BASE_SPEED, self.BASE_SPEED),
+            vy=random.uniform(-self.BASE_SPEED, self.BASE_SPEED),
             size=size,
             parallax_factor=random.uniform(0.1, 0.5),
-            mass=size*size
+            mass=size * size,
         )
 
-    def _create_spatial_grid(self) -> None:
-        """
-        Перестраивает пространственную сетку для быстрой проверки столкновений.
-
-        Этот метод вызывается в каждом кадре, чтобы обновить положение частиц
-        в сетке, что позволяет избежать O(n^2) проверок, ограничивая их
-        только соседними ячейками.
-        """
-        self.grid.clear()
-        if not self.grid_cell_size or not self.particles:
-            return
-            
-        for i, p in enumerate(self.particles):
-            cell_x = int(p.pos.x() / self.grid_cell_size)
-            cell_y = int(p.pos.y() / self.grid_cell_size)
-            
-            if (cell_x, cell_y) not in self.grid:
-                self.grid[(cell_x, cell_y)] = []
-            self.grid[(cell_x, cell_y)].append(i)
-
-    def _get_adjacent_indices(self, cell_x: int, cell_y: int) -> List[int]:
-        """
-        Возвращает список индексов частиц из указанной ячейки и 8 соседних.
-
-        Args:
-            cell_x: Координата X ячейки.
-            cell_y: Координата Y ячейки.
-
-        Returns:
-            Список индексов частиц, находящихся в соседних ячейках.
-        """
-        indices = []
-        for dx in range(-1, 2):
-            for dy in range(-1, 2):
-                neighbor_cell = (cell_x + dx, cell_y + dy)
-                if neighbor_cell in self.grid:
-                    indices.extend(self.grid[neighbor_cell])
-        return indices
-
     def init_particles(self) -> None:
-        """
-        Инициализирует или пересоздает все частицы и сбрасывает активные соединения.
-        """
+        """Пересоздаёт частицы и сбрасывает соединения."""
         if not self.isVisible() or self.width() == 0 or self.height() == 0:
             return
-        
-        w = self.width()
-        h = self.height()
-        r = self.CORNER_RADIUS
-        self.corner_centers = [
-            QPointF(r, r), QPointF(w - r, r),
-            QPointF(w - r, h - r), QPointF(r, h - r)
-        ]
-        
+
+        w, h, r = self.width(), self.height(), self.CORNER_RADIUS
+        self.corner_centers = [(r, r), (w - r, r), (w - r, h - r), (r, h - r)]
+
         self.particles = [self._create_particle() for _ in range(self.PARTICLE_COUNT)]
-        # Сбрасываем все существующие соединения, чтобы избежать "призрачных" линий
-        # при пересоздании частиц (например, после разворачивания окна).
+        # Иначе после разворачивания окна остаются «призрачные» линии
+        # между частицами, которых уже нет.
         self.active_connections.clear()
-        
-        if self.mouse_pos.x() < 0:
-            self.mouse_pos = QPointF(self.width() / 2, self.height() / 2)
-            
+
+        if self.mouse_x < 0:
+            self.mouse_x = w / 2
+            self.mouse_y = h / 2
+
         self.update()
 
+    def _rebuild_grid(self) -> None:
+        """Раскладывает частицы по ячейкам сетки."""
+        grid = self.grid
+        grid.clear()
+        cell_size = self.grid_cell_size
+        if not cell_size or not self.particles:
+            return
+
+        for index, particle in enumerate(self.particles):
+            key = (int(particle.x / cell_size), int(particle.y / cell_size))
+            bucket = grid.get(key)
+            if bucket is None:
+                grid[key] = [index]
+            else:
+                bucket.append(index)
+
+    def _adjacent_indices(self, cell_x: int, cell_y: int) -> list[int]:
+        """Индексы частиц в указанной ячейке и восьми соседних."""
+        grid = self.grid
+        indices: list[int] = []
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                bucket = grid.get((cell_x + dx, cell_y + dy))
+                if bucket:
+                    indices.extend(bucket)
+        return indices
+
+    # --- Кадр -------------------------------------------------------------
+
     def update_particles(self) -> None:
-        """
-        Основной метод, обновляющий состояние всех частиц в каждом кадре.
-        
-        Выполняется в несколько этапов:
-        1. Обновление позиций частиц и отталкивание от курсора.
-        2. Определение "идеальных" соединений с помощью стабильного алгоритма.
-        3. Обработка упругих столкновений частиц друг с другом.
-        4. Обработка столкновений со стенами и углами.
-        5. Ограничение скорости частиц в заданном диапазоне.
-        """
+        """Считает один кадр анимации."""
         if not self.is_animation_running:
+            return
+
+        particles = self.particles
+        if not particles:
             return
 
         self.time_counter += 0.03
-        
-        # --- Кэширование атрибутов для оптимизации ---
-        particles = self.particles
-        if not particles:
-            return
-            
-        particle_count = len(particles)
+        count = len(particles)
         w, h, r = self.width(), self.height(), self.CORNER_RADIUS
-        
-        # --- Этап 1: Обновление позиций и отталкивание от мыши ---
-        self._create_spatial_grid()
-        
-        mouse_pos = self.mouse_pos
-        repulsion_radius_sq = self.REPULSION_RADIUS**2
-        repulsion_strength = self.REPULSION_STRENGTH
-        
-        for p in particles:
-            p.pos += p.vel
-            if mouse_pos.x() > 0:
-                vec_from_mouse = p.pos - mouse_pos
-                dist_sq = vec_from_mouse.x()**2 + vec_from_mouse.y()**2
-                if dist_sq < repulsion_radius_sq and dist_sq > 1e-6:
-                    dist = math.sqrt(dist_sq)
-                    repulsion_force = (1 - dist / self.REPULSION_RADIUS) * repulsion_strength
-                    p.pos += (vec_from_mouse / dist) * repulsion_force
 
-        # --- Этап 2: Стабильный алгоритм определения соединений ---
-        
-        # 2.1. Для каждой частицы находим всех соседей в радиусе
-        particle_neighbors = [[] for _ in range(particle_count)]
-        break_distance_sq = self.break_distance_sq
+        self._move_and_repel(particles)
+        self._rebuild_grid()
 
-        for i in range(particle_count):
-            pos1 = particles[i].pos
-            cell_x = int(pos1.x() / self.grid_cell_size)
-            cell_y = int(pos1.y() / self.grid_cell_size)
-            for j_idx in self._get_adjacent_indices(cell_x, cell_y):
-                if i >= j_idx: continue
-                
-                pos2 = particles[j_idx].pos
-                dist_sq = (pos1.x() - pos2.x())**2 + (pos1.y() - pos2.y())**2
-                
-                if dist_sq < break_distance_sq:
-                    particle_neighbors[i].append((dist_sq, j_idx))
-                    particle_neighbors[j_idx].append((dist_sq, i))
+        # Соседство считается один раз за кадр и переиспользуется на этапах
+        # связей и столкновений: раньше сетка опрашивалась дважды.
+        neighbourhood = self._collect_neighbourhood(particles, count)
 
-        # 2.2. Каждая частица выбирает, кому "предложить" дружбу
-        active_connections = self.active_connections
-        proposals = [set() for _ in range(particle_count)]
-        stickiness_factor = self.CONNECTION_STICKINESS
-        max_connections = self.MAX_CONNECTIONS
-
-        for i in range(particle_count):
-            # Создаем временную копию для безопасной сортировки с "эффективным" расстоянием
-            sortable_neighbors = []
-            for dist_sq, j_idx in particle_neighbors[i]:
-                effective_dist_sq = dist_sq
-                # Применяем "липкость", если связь уже активна
-                if tuple(sorted((i, j_idx))) in active_connections:
-                    effective_dist_sq *= stickiness_factor
-                sortable_neighbors.append((effective_dist_sq, j_idx))
-            
-            # Сортируем по эффективной дистанции
-            sortable_neighbors.sort(key=lambda x: x[0])
-            
-            # Делаем предложения лучшим N кандидатам
-            for _, j_idx in sortable_neighbors[:max_connections]:
-                proposals[i].add(j_idx)
-
-        # 2.3. Находим взаимные пары ("двойное рукопожатие")
-        ideal_connections = {}
-        for i in range(particle_count):
-            neighbor_dist_map = {j: d for d, j in particle_neighbors[i]}
-            for j in proposals[i]:
-                # Проверяем пару только один раз (i < j) и проверяем взаимность
-                if i < j and i in proposals[j]:
-                    ideal_connections[tuple(sorted((i, j)))] = neighbor_dist_map[j]
-        
-        # 2.4. Обновляем непрозрачность (плавное появление/исчезновение)
-        next_active_connections = {}
-        fade_speed = self.FADE_SPEED
-
-        for pair, dist_sq in ideal_connections.items():
-            current_opacity, _ = active_connections.get(pair, (0.0, 0.0))
-            new_opacity = min(1.0, current_opacity + fade_speed)
-            next_active_connections[pair] = (new_opacity, dist_sq)
-
-        for pair, (current_opacity, old_dist_sq) in active_connections.items():
-            if pair not in ideal_connections:
-                new_opacity = max(0.0, current_opacity - fade_speed)
-                if new_opacity > 0:
-                    next_active_connections[pair] = (new_opacity, old_dist_sq)
-            
-        self.active_connections = next_active_connections
-
-        # --- Этап 3: Обработка столкновений частиц ---
-        for i in range(particle_count):
-            p1 = particles[i]
-            
-            cell_x = int(p1.pos.x() / self.grid_cell_size)
-            cell_y = int(p1.pos.y() / self.grid_cell_size)
-            adjacent_indices = self._get_adjacent_indices(cell_x, cell_y)
-
-            for j_idx in adjacent_indices:
-                if j_idx <= i: continue
-                
-                p2 = particles[j_idx]
-                vec_diff = p1.pos - p2.pos
-                dist_sq = vec_diff.x()**2 + vec_diff.y()**2
-                min_dist = p1.size + p2.size
-
-                if dist_sq < min_dist**2 and dist_sq > 1e-9:
-                    dist = math.sqrt(dist_sq)
-                    
-                    overlap = 0.5 * (min_dist - dist)
-                    vec_diff_norm = vec_diff / dist
-                    p1.pos += vec_diff_norm * overlap
-                    p2.pos -= vec_diff_norm * overlap
-
-                    normal = vec_diff_norm
-                    tangent = QPointF(-normal.y(), normal.x())
-
-                    v1n = QPointF.dotProduct(p1.vel, normal)
-                    v1t = QPointF.dotProduct(p1.vel, tangent)
-                    v2n = QPointF.dotProduct(p2.vel, normal)
-                    v2t = QPointF.dotProduct(p2.vel, tangent)
-
-                    m1, m2 = p1.mass, p2.mass
-                    v1n_new = (v1n * (m1 - m2) + 2 * m2 * v2n) / (m1 + m2)
-                    v2n_new = (v2n * (m2 - m1) + 2 * m1 * v1n) / (m1 + m2)
-
-                    p1.vel = v1n_new * normal + v1t * tangent
-                    p2.vel = v2n_new * normal + v2t * tangent
-
-        # --- Этап 4: Обработка столкновений со стенами ---
-        wall_rebound_factor = self.WALL_REBOUND_FACTOR
-        corner_centers = self.corner_centers
-        for p in particles:
-            px, py = p.pos.x(), p.pos.y()
-            ps = p.size
-
-            # Столкновения с границами
-            if px - ps < 0 and r <= py <= h - r:
-                p.pos.setX(ps)
-                if p.vel.x() < 0: p.vel.setX(-p.vel.x() * wall_rebound_factor)
-            elif px + ps > w and r <= py <= h - r:
-                p.pos.setX(w - ps)
-                if p.vel.x() > 0: p.vel.setX(-p.vel.x() * wall_rebound_factor)
-            if py - ps < 0 and r <= px <= w - r:
-                p.pos.setY(ps)
-                if p.vel.y() < 0: p.vel.setY(-p.vel.y() * wall_rebound_factor)
-            elif py + ps > h and r <= px <= w - r:
-                p.pos.setY(h - ps)
-                if p.vel.y() > 0: p.vel.setY(-p.vel.y() * wall_rebound_factor)
-
-            # Углы
-            center = None
-            if px < r and py < r: center = corner_centers[0]
-            elif px > w - r and py < r: center = corner_centers[1]
-            elif px > w - r and py > h - r: center = corner_centers[2]
-            elif px < r and py > h - r: center = corner_centers[3]
-
-            if center is not None:
-                vec_to_center = p.pos - center
-                dist = math.sqrt(vec_to_center.x()**2 + vec_to_center.y()**2)
-                
-                if dist > r - ps and dist > 1e-6:
-                    normal = vec_to_center / dist
-                    vel_dot_normal = QPointF.dotProduct(p.vel, normal)
-                    if vel_dot_normal > 0:
-                        p.vel = p.vel - (1 + wall_rebound_factor) * vel_dot_normal * normal
-                    p.pos = center + normal * (r - ps)
-
-        # --- Этап 5: Ограничение скорости ---
-        min_sq, max_sq = self.min_speed_sq, self.max_speed_sq
-        min_speed = self.MIN_SPEED
-        
-        for p in particles:
-            vel = p.vel
-            speed_sq = vel.x()**2 + vel.y()**2
-            
-            if speed_sq < min_sq:
-                if speed_sq < 1e-9:
-                    angle = random.uniform(0, 2 * math.pi)
-                    vel.setX(min_speed * math.cos(angle))
-                    vel.setY(min_speed * math.sin(angle))
-                else:
-                    scale = min_speed / math.sqrt(speed_sq)
-                    p.vel *= scale
-            elif speed_sq > max_sq:
-                scale = self.MAX_SPEED / math.sqrt(speed_sq)
-                p.vel *= scale
+        self._update_connections(neighbourhood, count)
+        self._resolve_collisions(particles, neighbourhood)
+        self._bounce_off_walls(particles, w, h, r)
+        self._clamp_speeds(particles)
 
         self.update()
 
-    def start_animation(self):
-        """Запускает таймер анимации, если он еще не запущен."""
+    def _move_and_repel(self, particles: list[Particle]) -> None:
+        """Смещает частицы и отталкивает их от курсора."""
+        mouse_x, mouse_y = self.mouse_x, self.mouse_y
+        radius = self.REPULSION_RADIUS
+        radius_sq = radius * radius
+        strength = self.REPULSION_STRENGTH
+        has_mouse = mouse_x > 0
+
+        for particle in particles:
+            particle.x += particle.vx
+            particle.y += particle.vy
+
+            if not has_mouse:
+                continue
+
+            dx = particle.x - mouse_x
+            dy = particle.y - mouse_y
+            dist_sq = dx * dx + dy * dy
+            if 1e-6 < dist_sq < radius_sq:
+                dist = math.sqrt(dist_sq)
+                force = (1.0 - dist / radius) * strength / dist
+                particle.x += dx * force
+                particle.y += dy * force
+
+    def _collect_neighbourhood(
+        self, particles: list[Particle], count: int
+    ) -> list[list[tuple[float, int]]]:
+        """Для каждой частицы собирает соседей в радиусе связи."""
+        neighbourhood: list[list[tuple[float, int]]] = [[] for _ in range(count)]
+        cell_size = self.grid_cell_size
+        break_distance_sq = self.break_distance_sq
+
+        for i in range(count):
+            p1 = particles[i]
+            x1, y1 = p1.x, p1.y
+            for j in self._adjacent_indices(int(x1 / cell_size), int(y1 / cell_size)):
+                if j <= i:
+                    continue
+                p2 = particles[j]
+                dx = x1 - p2.x
+                dy = y1 - p2.y
+                dist_sq = dx * dx + dy * dy
+                if dist_sq < break_distance_sq:
+                    neighbourhood[i].append((dist_sq, j))
+                    neighbourhood[j].append((dist_sq, i))
+
+        return neighbourhood
+
+    def _update_connections(self, neighbourhood: list[list[tuple[float, int]]], count: int) -> None:
+        """Выбирает пары частиц для связи и плавно меняет их непрозрачность."""
+        active = self.active_connections
+        stickiness = self.CONNECTION_STICKINESS
+        max_connections = self.MAX_CONNECTIONS
+
+        # Каждая частица «предлагает» связь ближайшим соседям.
+        proposals: list[set[int]] = []
+        for i in range(count):
+            neighbours = neighbourhood[i]
+            if not neighbours:
+                proposals.append(set())
+                continue
+
+            ranked = sorted(
+                (
+                    # Уже существующая связь считается ближе, чем есть:
+                    # без этого линии дрожали бы на границе радиуса.
+                    (dist_sq * stickiness if (i, j) in active or (j, i) in active else dist_sq, j)
+                    for dist_sq, j in neighbours
+                ),
+                key=_first,
+            )
+            proposals.append({j for _, j in ranked[:max_connections]})
+
+        # Связь возникает только при взаимном предложении.
+        ideal: dict[tuple[int, int], float] = {}
+        for i in range(count):
+            proposals_i = proposals[i]
+            if not proposals_i:
+                continue
+            distances = {j: dist_sq for dist_sq, j in neighbourhood[i]}
+            for j in proposals_i:
+                if i < j and i in proposals[j]:
+                    ideal[(i, j)] = distances[j]
+
+        fade = self.FADE_SPEED
+        updated: dict[tuple[int, int], tuple[float, float]] = {}
+
+        for pair, dist_sq in ideal.items():
+            opacity = active.get(pair, (0.0, 0.0))[0]
+            updated[pair] = (min(1.0, opacity + fade), dist_sq)
+
+        for pair, (opacity, dist_sq) in active.items():
+            if pair not in ideal:
+                faded = opacity - fade
+                if faded > 0.0:
+                    updated[pair] = (faded, dist_sq)
+
+        self.active_connections = updated
+
+    def _resolve_collisions(
+        self, particles: list[Particle], neighbourhood: list[list[tuple[float, int]]]
+    ) -> None:
+        """Упруго разводит столкнувшиеся частицы."""
+        for i, neighbours in enumerate(neighbourhood):
+            p1 = particles[i]
+            for _, j in neighbours:
+                if j <= i:
+                    continue
+                p2 = particles[j]
+
+                dx = p1.x - p2.x
+                dy = p1.y - p2.y
+                dist_sq = dx * dx + dy * dy
+                min_dist = p1.size + p2.size
+
+                if not (1e-9 < dist_sq < min_dist * min_dist):
+                    continue
+
+                dist = math.sqrt(dist_sq)
+                nx, ny = dx / dist, dy / dist
+                overlap = 0.5 * (min_dist - dist)
+
+                p1.x += nx * overlap
+                p1.y += ny * overlap
+                p2.x -= nx * overlap
+                p2.y -= ny * overlap
+
+                # Разложение скоростей на нормаль и касательную к удару.
+                tx, ty = -ny, nx
+                v1n = p1.vx * nx + p1.vy * ny
+                v1t = p1.vx * tx + p1.vy * ty
+                v2n = p2.vx * nx + p2.vy * ny
+                v2t = p2.vx * tx + p2.vy * ty
+
+                m1, m2 = p1.mass, p2.mass
+                total = m1 + m2
+                v1n_new = (v1n * (m1 - m2) + 2.0 * m2 * v2n) / total
+                v2n_new = (v2n * (m2 - m1) + 2.0 * m1 * v1n) / total
+
+                p1.vx = v1n_new * nx + v1t * tx
+                p1.vy = v1n_new * ny + v1t * ty
+                p2.vx = v2n_new * nx + v2t * tx
+                p2.vy = v2n_new * ny + v2t * ty
+
+    def _bounce_off_walls(self, particles: list[Particle], w: int, h: int, r: float) -> None:
+        """Отражает частицы от прямых стен и скруглённых углов."""
+        rebound = self.WALL_REBOUND_FACTOR
+        corners = self.corner_centers
+
+        for particle in particles:
+            x, y, size = particle.x, particle.y, particle.size
+
+            if x - size < 0 and r <= y <= h - r:
+                particle.x = size
+                if particle.vx < 0:
+                    particle.vx = -particle.vx * rebound
+            elif x + size > w and r <= y <= h - r:
+                particle.x = w - size
+                if particle.vx > 0:
+                    particle.vx = -particle.vx * rebound
+
+            if y - size < 0 and r <= x <= w - r:
+                particle.y = size
+                if particle.vy < 0:
+                    particle.vy = -particle.vy * rebound
+            elif y + size > h and r <= x <= w - r:
+                particle.y = h - size
+                if particle.vy > 0:
+                    particle.vy = -particle.vy * rebound
+
+            if not corners:
+                continue
+
+            corner = None
+            if x < r and y < r:
+                corner = corners[0]
+            elif x > w - r and y < r:
+                corner = corners[1]
+            elif x > w - r and y > h - r:
+                corner = corners[2]
+            elif x < r and y > h - r:
+                corner = corners[3]
+
+            if corner is None:
+                continue
+
+            dx = particle.x - corner[0]
+            dy = particle.y - corner[1]
+            dist = math.sqrt(dx * dx + dy * dy)
+            if dist > r - size and dist > 1e-6:
+                nx, ny = dx / dist, dy / dist
+                vel_dot_normal = particle.vx * nx + particle.vy * ny
+                if vel_dot_normal > 0:
+                    factor = (1.0 + rebound) * vel_dot_normal
+                    particle.vx -= factor * nx
+                    particle.vy -= factor * ny
+                particle.x = corner[0] + nx * (r - size)
+                particle.y = corner[1] + ny * (r - size)
+
+    def _clamp_speeds(self, particles: list[Particle]) -> None:
+        """Удерживает скорость частиц в заданном диапазоне."""
+        min_sq, max_sq = self.min_speed_sq, self.max_speed_sq
+        min_speed, max_speed = self.MIN_SPEED, self.MAX_SPEED
+
+        for particle in particles:
+            speed_sq = particle.vx * particle.vx + particle.vy * particle.vy
+
+            if speed_sq < min_sq:
+                if speed_sq < 1e-9:
+                    angle = random.uniform(0, 2 * math.pi)
+                    particle.vx = min_speed * math.cos(angle)
+                    particle.vy = min_speed * math.sin(angle)
+                else:
+                    scale = min_speed / math.sqrt(speed_sq)
+                    particle.vx *= scale
+                    particle.vy *= scale
+            elif speed_sq > max_sq:
+                scale = max_speed / math.sqrt(speed_sq)
+                particle.vx *= scale
+                particle.vy *= scale
+
+    # --- Управление анимацией --------------------------------------------
+
+    def start_animation(self) -> None:
+        """Запускает анимацию."""
         if not self.is_animation_running:
             self.is_animation_running = True
-            self.time_counter = 0 
-            self.animation_timer.start(30)
+            self.time_counter = 0.0
+            self.animation_timer.start(self.FRAME_INTERVAL_MS)
 
-    def stop_animation(self):
-        """Останавливает таймер анимации."""
+    def stop_animation(self) -> None:
+        """Останавливает анимацию и освобождает процессор."""
         if self.is_animation_running:
             self.is_animation_running = False
-            if self.animation_timer.isActive():
-                self.animation_timer.stop()
+            self.animation_timer.stop()
+
+    # --- Отрисовка --------------------------------------------------------
 
     def paintEvent(self, event: QPaintEvent) -> None:
-        """Отрисовывает фон, частицы и переливающиеся в синей гамме линии."""
+        """Рисует фон, линии связей и частицы."""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        rounded_rect_path = QPainterPath()
-        rounded_rect_path.addRoundedRect(QRectF(self.rect()), self.CORNER_RADIUS, self.CORNER_RADIUS)
-
-        painter.setClipPath(rounded_rect_path)
-        
+        clip = QPainterPath()
+        clip.addRoundedRect(QRectF(self.rect()), self.CORNER_RADIUS, self.CORNER_RADIUS)
+        painter.setClipPath(clip)
         painter.fillRect(self.rect(), self.BG_COLOR)
 
-        # Кэшируем атрибуты для оптимизации
         particles = self.particles
         if not particles:
             return
 
-        active_connections = self.active_connections
+        self._paint_connections(painter, particles)
+        self._paint_particles(painter, particles)
+
+    def _paint_connections(self, painter: QPainter, particles: list[Particle]) -> None:
         connection_distance_sq = self.connection_distance_sq
         time_counter = self.time_counter
-        line_pen = QPen(self.LINE_BASE_COLOR, 1)
+        line_colors = self._line_colors
+        pen = QPen(self.LINE_BASE_COLOR, 1)
 
-        for (i, j), (opacity, dist_sq) in active_connections.items():
-            if opacity > 0:
-                pos1 = particles[i].pos
-                pos2 = particles[j].pos
+        for (i, j), (opacity, dist_sq) in self.active_connections.items():
+            if opacity <= 0.0:
+                continue
 
-                # Базовая альфа зависит от расстояния
-                base_alpha = 90 * (1 - dist_sq / connection_distance_sq)
-                # Итоговая альфа учитывает плавное появление/исчезновение
-                final_alpha = int(base_alpha * opacity)
+            p1, p2 = particles[i], particles[j]
+            base_alpha = 90.0 * (1.0 - dist_sq / connection_distance_sq)
+            alpha = int(base_alpha * opacity)
+            if alpha <= 0:
+                continue
 
-                if final_alpha > 0:
-                    oscillation = math.sin(time_counter + pos1.x() * 0.01)
+            color = QColor(line_colors[self._hue_index(math.sin(time_counter + p1.x * 0.01))])
+            color.setAlpha(alpha)
+            pen.setColor(color)
+            painter.setPen(pen)
+            painter.drawLine(QPointF(p1.x, p1.y), QPointF(p2.x, p2.y))
 
-                    base_hue = 0.62
-                    hue_range = 0.08
-                    hue_value = base_hue + (oscillation * hue_range)
-
-                    current_color = QColor.fromHslF(hue_value, 0.8, 0.6, final_alpha / 255.0)
-                    
-                    line_pen.setColor(current_color)
-                    painter.setPen(line_pen)
-                    painter.drawLine(pos1, pos2)
-        
+    def _paint_particles(self, painter: QPainter, particles: list[Particle]) -> None:
         painter.setPen(Qt.PenStyle.NoPen)
-        for p in particles:
-            oscillation = math.sin(time_counter * 0.5 + p.pos.y() * 0.01)
-            base_hue = 0.62
-            hue_range = 0.08
-            particle_hue = base_hue + (oscillation * hue_range)
-            
-            particle_color = QColor.fromHslF(particle_hue, 0.9, 0.7, 0.8)
-            painter.setBrush(particle_color)
-            painter.drawEllipse(p.pos, p.size, p.size)
-            
+        half_time = self.time_counter * 0.5
+        particle_colors = self._particle_colors
+
+        for particle in particles:
+            index = self._hue_index(math.sin(half_time + particle.y * 0.01))
+            painter.setBrush(particle_colors[index])
+            painter.drawEllipse(QPointF(particle.x, particle.y), particle.size, particle.size)
+
+    # --- События ----------------------------------------------------------
+
     def resizeEvent(self, event: QResizeEvent) -> None:
-        """Пересоздает частицы при изменении размера виджета."""
+        """Пересоздаёт частицы под новый размер виджета."""
         self.init_particles()
 
     def showEvent(self, event: QShowEvent) -> None:
-        """
-        Инициализирует частицы и перезапускает анимацию, когда виджет становится видимым.
-        Это решает проблему "замерзания" после сворачивания и разворачивания окна.
-        """
+        """Возобновляет анимацию после разворачивания окна."""
         super().showEvent(event)
         self.init_particles()
-        # Если анимация должна была работать, но таймер был остановлен (например,
-        # через hideEvent), мы его перезапускаем.
         if self.is_animation_running and not self.animation_timer.isActive():
-            self.animation_timer.start(30)
+            self.animation_timer.start(self.FRAME_INTERVAL_MS)
 
     def hideEvent(self, event: QShowEvent) -> None:
-        """
-        Приостанавливает анимацию при скрытии виджета для экономии ресурсов.
-        """
+        """Останавливает таймер, пока виджет не виден."""
         super().hideEvent(event)
-        if self.animation_timer.isActive():
-            self.animation_timer.stop()
+        self.animation_timer.stop()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        """Обновляет позицию курсора для эффекта параллакса."""
-        self.mouse_pos = event.position()
+        """Запоминает позицию курсора для отталкивания частиц."""
+        position = event.position()
+        self.mouse_x = position.x()
+        self.mouse_y = position.y()
 
     def leaveEvent(self, event: QMouseEvent) -> None:
-        """Обновляет позицию курсора при выходе из виджета."""
-        self.mouse_pos = QPointF(-1, -1)
+        """Убирает влияние курсора, когда он покидает виджет."""
+        self.mouse_x = -1.0
+        self.mouse_y = -1.0
 
-    def update_mouse_position(self, pos: QPoint):
-        """Публичный метод для обновления позиции мыши извне."""
-        # Конвертируем QPoint в QPointF для совместимости с физикой частиц
-        self.mouse_pos = QPointF(pos)
-        # Не вызываем update() здесь, чтобы не перегружать рендер,
-        # так как он и так вызывается по таймеру.
-
-    def _update_animation(self):
-        if not self.is_visible or not self.particles:
-            return
+    def update_mouse_position(self, pos: QPoint) -> None:
+        """Позволяет обновить позицию курсора извне (события родителя)."""
+        self.mouse_x = float(pos.x())
+        self.mouse_y = float(pos.y())
 
 
-class PulsingButton(QPushButton):
-    def __init__(self, text, parent=None):
-        super().__init__(text, parent)
-        self._animation = QPropertyAnimation(self, b"styleSheet")
-        self._animation.setDuration(1500)
-        
-        self._animation.setLoopCount(-1) # Loop indefinitely
-        self.setStyleSheet("""
-            PulsingButton {
-                background-color: #415a77;
-                color: #e0e1dd;
-                border: 2px solid #778da9;
-                padding: 10px;
-                border-radius: 5px;
-            }
-        """)
-
-    def start_animation(self):
-        self._animation.setKeyValues([
-            (0.0, "background-color: #415a77; border: 2px solid #778da9;"),
-            (0.5, "background-color: #5a7a9f; border: 2px solid #9fb8d5;"),
-            (1.0, "background-color: #415a77; border: 2px solid #778da9;"),
-        ])
-        self._animation.start()
-
-    def stop_animation(self):
-        self._animation.stop()
-
-
-if __name__ == '__main__':
-    app = QApplication(sys.argv)
-
-    WIN_WIDTH = 800
-    WIN_HEIGHT = 600
-
-    window = QMainWindow()
-    window.setWindowTitle("NeuralBackgroundWidget Test")
-    window.setFixedSize(WIN_WIDTH, WIN_HEIGHT)
-
-    neural_background = NeuralBackgroundWidget()
-    window.setCentralWidget(neural_background)
-
-    button = PulsingButton("Test Button", parent=neural_background)
-    BUTTON_WIDTH = 200
-    BUTTON_HEIGHT = 50
-    button.resize(BUTTON_WIDTH, BUTTON_HEIGHT)
-    button.move((WIN_WIDTH - BUTTON_WIDTH) // 2, (WIN_HEIGHT - BUTTON_HEIGHT) // 2)
-
-    neural_background.start_animation()
-    button.start_animation()
-
-    window.show()
-
-    sys.exit(app.exec())
+def _first(item: tuple[float, int]) -> float:
+    """Ключ сортировки по расстоянию."""
+    return item[0]

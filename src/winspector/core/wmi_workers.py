@@ -1,161 +1,234 @@
 # src/winspector/core/wmi_workers.py
 """
-Worker-функции, выполняемые в отдельных процессах для безопасного
-и изолированного сбора системной информации через WMI.
+Функции сбора системной информации через WMI.
 
-Эта версия включает оптимизированные WQL-запросы и асинхронное выполнение
-для максимальной производительности и надежности.
+Выполняются в отдельном процессе (см. `worker_pool`), поэтому написаны
+синхронно и возвращают ошибку значением, а не исключением.
+
+Почему без потоков: WMI работает через COM, а COM-объект привязан к
+апартаменту создавшего его потока. Прежняя версия раскладывала запросы по
+`asyncio.to_thread`, и обращения из чужих потоков падали с
+`CO_E_NOTINITIALIZED` (0x800401F0) — сбор данных об оборудовании молча
+возвращал пустой результат. Внутри выделенного процесса параллелить нечего:
+последовательные запросы и проще, и корректны.
 """
-import asyncio
+
+from __future__ import annotations
+
+import contextlib
+from typing import Any
+
 import wmi
-from typing import Any, Dict, List, Optional
+
+try:
+    import pythoncom
+except ImportError:  # окружения без pywin32
+    pythoncom = None
 
 
-def _get_wmi_connection() -> Optional[Any]:
-    """
-    Вспомогательная функция для инкапсуляции создания WMI-соединения.
-    В случае сбоя подключения к WMI возвращает None.
-    """
+def _init_com() -> None:
+    """Инициализирует COM для текущего потока, если это возможно."""
+    if pythoncom is None:
+        return
+    # Повторный вызов в уже инициализированном апартаменте — не ошибка.
+    with contextlib.suppress(Exception):
+        pythoncom.CoInitialize()
+
+
+def _get_wmi_connection() -> Any | None:
+    """Создаёт соединение с WMI. Возвращает None, если это не удалось."""
+    _init_com()
     try:
-        # find_classes=False может немного ускорить инициализацию
+        # find_classes=False заметно ускоряет инициализацию.
         return wmi.WMI(find_classes=False)
-    except wmi.x_wmi as e:
-        print(f"WMI connection failed in worker process: {e}")
+    except Exception as exc:
+        print(f"WMI connection failed in worker process: {exc}")
         return None
 
 
-async def _get_hardware_info_async(wmi_con: Any) -> Dict[str, Any]:
-    """Асинхронно и параллельно собирает всю информацию об оборудовании."""
-    hardware: Dict[str, Any] = {"gpu": [], "disks": []}
+def _safe_query(wmi_con: Any, wql: str) -> list[Any]:
+    """Выполняет WQL-запрос, возвращая пустой список при любой ошибке."""
+    try:
+        return list(wmi_con.query(wql))
+    except Exception as exc:
+        print(f"WMI query failed ({wql[:60]}...): {exc}")
+        return []
 
-    # Запускаем все WMI-запросы параллельно в потоках, чтобы не блокировать event loop
-    cpu_task = asyncio.to_thread(wmi_con.query, "SELECT Name, NumberOfCores, NumberOfLogicalProcessors FROM Win32_Processor")
-    gpu_task = asyncio.to_thread(wmi_con.query, "SELECT Name, DriverVersion, AdapterRAM, AdapterCompatibility FROM Win32_VideoController")
-    ram_task = asyncio.to_thread(wmi_con.query, "SELECT TotalPhysicalMemory FROM Win32_ComputerSystem")
-    board_task = asyncio.to_thread(wmi_con.query, "SELECT Manufacturer, Product FROM Win32_BaseBoard")
-    disk_task = asyncio.to_thread(wmi_con.query, "SELECT DeviceID, Model, Size, MediaType FROM Win32_DiskDrive")
 
-    # Ожидаем завершения всех асинхронных задач
-    results = await asyncio.gather(cpu_task, gpu_task, ram_task, board_task, disk_task, return_exceptions=True)
-    cpu_res, gpu_res, ram_res, board_res, disk_res = results
+def _collect_hardware(wmi_con: Any) -> dict[str, Any]:
+    """Собирает сведения об оборудовании."""
+    hardware: dict[str, Any] = {"gpu": [], "disks": []}
 
-    # Обрабатываем результаты каждой задачи, проверяя на ошибки
-    if not isinstance(cpu_res, Exception) and cpu_res:
-        cpu_info = cpu_res[0]
-        hardware['cpu'] = {"name": cpu_info.Name.strip(), "cores": cpu_info.NumberOfCores, "threads": cpu_info.NumberOfLogicalProcessors}
-    
-    if not isinstance(gpu_res, Exception) and gpu_res:
-        for gpu in gpu_res:
-            if gpu.AdapterCompatibility and "Microsoft" not in gpu.AdapterCompatibility:
-                hardware['gpu'].append({"name": gpu.Name.strip(), "driver_version": gpu.DriverVersion, "vram_mb": round(int(gpu.AdapterRAM) / (1024**2)) if gpu.AdapterRAM else None})
+    cpus = _safe_query(
+        wmi_con,
+        "SELECT Name, NumberOfCores, NumberOfLogicalProcessors FROM Win32_Processor",
+    )
+    if cpus:
+        cpu = cpus[0]
+        hardware["cpu"] = {
+            "name": (cpu.Name or "").strip(),
+            "cores": cpu.NumberOfCores,
+            "threads": cpu.NumberOfLogicalProcessors,
+        }
 
-    if not isinstance(ram_res, Exception) and ram_res:
-        hardware['ram_gb'] = round(int(ram_res[0].TotalPhysicalMemory) / (1024**3))
+    for gpu in _safe_query(
+        wmi_con,
+        "SELECT Name, DriverVersion, AdapterRAM, AdapterCompatibility FROM Win32_VideoController",
+    ):
+        vendor = gpu.AdapterCompatibility or ""
+        if "Microsoft" in vendor:
+            continue  # программный адаптер, а не физическая видеокарта
+        hardware["gpu"].append(
+            {
+                "name": (gpu.Name or "").strip(),
+                "driver_version": gpu.DriverVersion,
+                "vram_mb": round(int(gpu.AdapterRAM) / (1024**2)) if gpu.AdapterRAM else None,
+            }
+        )
 
-    if not isinstance(board_res, Exception) and board_res:
-        hardware['motherboard'] = {"manufacturer": board_res[0].Manufacturer.strip(), "product": board_res[0].Product.strip()}
+    systems = _safe_query(wmi_con, "SELECT TotalPhysicalMemory FROM Win32_ComputerSystem")
+    if systems and systems[0].TotalPhysicalMemory:
+        hardware["ram_gb"] = round(int(systems[0].TotalPhysicalMemory) / (1024**3))
 
-    if not isinstance(disk_res, Exception) and disk_res:
-        for disk in disk_res:
-            disk_data = {"model": disk.Model.strip(), "size_gb": round(int(disk.Size) / (1024**3)) if disk.Size else None, "media_type": disk.MediaType, "partitions": []}
-            try:
-                # Связываем физический диск с разделами, а разделы с логическими дисками
-                partitions = wmi_con.query(f"ASSOCIATORS OF {{Win32_DiskDrive.DeviceID='{disk.DeviceID}'}} WHERE AssocClass=Win32_DiskDriveToDiskPartition")
-                for part in partitions:
-                    logical_disks = part.associators(wmi_class="Win32_LogicalDisk")
-                    for logical in logical_disks:
-                        disk_data["partitions"].append({
-                            "drive_letter": logical.DeviceID,
-                            "volume_name": logical.VolumeName,
-                            "file_system": logical.FileSystem,
-                            "free_space_gb": round(int(logical.FreeSpace) / (1024**3)) if logical.FreeSpace else None,
-                        })
-            except Exception:
-                # Если не удалось получить разделы, просто пропускаем эту информацию
-                pass
-            hardware['disks'].append(disk_data)
+    boards = _safe_query(wmi_con, "SELECT Manufacturer, Product FROM Win32_BaseBoard")
+    if boards:
+        hardware["motherboard"] = {
+            "manufacturer": (boards[0].Manufacturer or "").strip(),
+            "product": (boards[0].Product or "").strip(),
+        }
+
+    for disk in _safe_query(
+        wmi_con, "SELECT DeviceID, Model, Size, MediaType FROM Win32_DiskDrive"
+    ):
+        hardware["disks"].append(
+            {
+                "model": (disk.Model or "").strip(),
+                "size_gb": round(int(disk.Size) / (1024**3)) if disk.Size else None,
+                "media_type": disk.MediaType,
+                "partitions": _collect_partitions(disk),
+            }
+        )
 
     return hardware
 
 
-def get_hardware_info_worker() -> Dict[str, Any]:
-    """Синхронная обертка для асинхронного сбора данных об оборудовании."""
+def _collect_partitions(disk: Any) -> list[dict[str, Any]]:
+    """
+    Связывает физический диск с логическими томами.
+
+    Используется метод `associators` самой библиотеки: он корректно строит
+    путь к объекту. Ручной WQL требовал экранирования `\\\\.\\PHYSICALDRIVE0`
+    и возвращал WBEM_E_NOT_FOUND. Важно и имя аргумента — `wmi_result_class`;
+    с прежним `wmi_class` вызов падал на TypeError, и разделы никогда не
+    попадали в отчёт.
+    """
+    partitions: list[dict[str, Any]] = []
+
+    try:
+        associated = disk.associators(wmi_result_class="Win32_DiskPartition")
+    except Exception as exc:
+        print(f"Disk partition lookup failed: {exc}")
+        return partitions
+
+    for part in associated:
+        try:
+            logical_disks = part.associators(wmi_result_class="Win32_LogicalDisk")
+        except Exception:
+            continue
+        for logical in logical_disks:
+            partitions.append(
+                {
+                    "drive_letter": logical.DeviceID,
+                    "volume_name": logical.VolumeName,
+                    "file_system": logical.FileSystem,
+                    "free_space_gb": (
+                        round(int(logical.FreeSpace) / (1024**3)) if logical.FreeSpace else None
+                    ),
+                }
+            )
+    return partitions
+
+
+def get_hardware_info_worker() -> dict[str, Any]:
+    """Точка входа воркера: сведения об оборудовании."""
     wmi_con = _get_wmi_connection()
-    if not wmi_con:
+    if wmi_con is None:
         return {"error": "WMI connection failed."}
     try:
-        # Запускаем и выполняем асинхронную функцию
-        return asyncio.run(_get_hardware_info_async(wmi_con))
-    except Exception as e:
-        return {"error": f"Async hardware collection failed: {e}"}
+        return _collect_hardware(wmi_con)
+    except Exception as exc:
+        return {"error": f"Hardware collection failed: {exc}"}
 
 
-def get_services_worker() -> Dict[str, Any]:
+def get_services_worker() -> dict[str, Any]:
     """
-    Worker-функция для сбора информации о службах, которые НЕ отключены.
-    Использует оптимизированный WQL-запрос для повышения производительности.
+    Точка входа воркера: службы, доступные для оптимизации.
+
+    Системные службы из System32 и хосты svchost исключаются: их изменение
+    рискованно, а объём данных для модели заметно вырастает.
     """
     wmi_con = _get_wmi_connection()
-    if not wmi_con:
+    if wmi_con is None:
         return {"error": "WMI connection failed."}
 
-    services: List[Dict[str, Any]] = []
     try:
-        # Запрос выбирает только нужные поля и только у не отключенных служб
-        wmi_query = "SELECT Name, DisplayName, State, StartMode, PathName FROM Win32_Service WHERE StartMode != 'Disabled'"
-        for s in wmi_con.query(wmi_query):
-            path = s.PathName
-            # Дополнительно фильтруем системные службы Microsoft для уменьшения "шума"
-            if path and ("system32" in path.lower() or "svchost" in path.lower()):
-                continue
+        rows = wmi_con.query(
+            "SELECT Name, DisplayName, State, StartMode, PathName "
+            "FROM Win32_Service WHERE StartMode != 'Disabled'"
+        )
+    except Exception as exc:
+        return {"error": str(exc)}
 
-            services.append({
-                "name": s.Name,
-                "display_name": s.DisplayName,
-                "state": s.State,
-                "start_mode": s.StartMode,
+    services: list[dict[str, Any]] = []
+    for service in rows:
+        path = service.PathName
+        if path and ("system32" in path.lower() or "svchost" in path.lower()):
+            continue
+        services.append(
+            {
+                "name": service.Name,
+                "display_name": service.DisplayName,
+                "state": service.State,
+                "start_mode": service.StartMode,
                 "path": path,
-            })
-        return {"services": services}
-    except Exception as e:
-        return {"error": str(e)}
+            }
+        )
+    return {"services": services}
 
 
-def get_running_processes_worker() -> Dict[str, Any]:
-    """
-    Worker-функция для сбора информации о запущенных процессах,
-    исключая системные и доверенные процессы.
-    """
+def get_running_processes_worker() -> dict[str, Any]:
+    """Точка входа воркера: пользовательские процессы (без системных учёток)."""
     wmi_con = _get_wmi_connection()
-    if not wmi_con:
+    if wmi_con is None:
         return {"error": "WMI connection failed."}
 
-    processes: List[Dict[str, Any]] = []
-    system_accounts = {'local system', 'system', 'network service'}
+    system_accounts = {"local system", "system", "network service", "local service"}
+    processes: list[dict[str, Any]] = []
 
     try:
-        # Оптимизированный запрос, выбираем только нужные поля
-        wmi_query = "SELECT ProcessId, Name, ExecutablePath, CommandLine FROM Win32_Process"
-        for p in wmi_con.query(wmi_query):
-            try:
-                owner_info = p.GetOwner()
-                owner_domain = (owner_info[2] or "").lower()
-                owner_user = (owner_info[0] or "").lower()
+        rows = wmi_con.query(
+            "SELECT ProcessId, Name, ExecutablePath, CommandLine FROM Win32_Process"
+        )
+    except Exception as exc:
+        return {"error": str(exc)}
 
-                # Пропускаем процессы, принадлежащие системным учетным записям
-                if owner_domain in system_accounts or owner_user in system_accounts:
-                    continue
-
-                processes.append({
-                    "pid": p.ProcessId,
-                    "name": p.Name,
-                    "path": p.ExecutablePath,
-                    "command_line": p.CommandLine,
-                    "owner": f"{owner_domain}\\{owner_user}"
-                })
-            except Exception:
-                # Пропускаем процессы, к которым нет доступа (например, защищенные)
+    for process in rows:
+        try:
+            owner_info = process.GetOwner()
+            owner_domain = (owner_info[2] or "").lower()
+            owner_user = (owner_info[0] or "").lower()
+            if owner_domain in system_accounts or owner_user in system_accounts:
                 continue
-        return {"processes": processes}
-    except Exception as e:
-        return {"error": str(e)}
+            processes.append(
+                {
+                    "pid": process.ProcessId,
+                    "name": process.Name,
+                    "path": process.ExecutablePath,
+                    "command_line": process.CommandLine,
+                    "owner": f"{owner_domain}\\{owner_user}",
+                }
+            )
+        except Exception:
+            continue
+
+    return {"processes": processes}

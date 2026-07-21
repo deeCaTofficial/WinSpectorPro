@@ -3,9 +3,11 @@
 Кастомный, полностью стилизованный и управляемый TitleBar для приложения,
 обеспечивающий перемещение безрамочного окна и кастомные кнопки управления.
 """
-from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel, QApplication
-from PyQt6.QtCore import Qt, QSize, QRectF, QPointF, pyqtSignal
-from PyQt6.QtGui import QIcon, QPainter, QColor, QPen, QBrush
+
+from PyQt6.QtCore import QPointF, QRectF, QSize, Qt, pyqtSignal
+from PyQt6.QtGui import QColor, QPainter, QPen
+from PyQt6.QtWidgets import QHBoxLayout, QLabel, QWidget
+
 
 class TitleBarButton(QWidget):
     """
@@ -13,6 +15,7 @@ class TitleBarButton(QWidget):
     Отрисовывает символы управления окном вручную для достижения
     единого, четкого стиля и обрабатывает события наведения мыши.
     """
+
     clicked = pyqtSignal()
 
     # --- Цветовая палитра (оптимизация) ---
@@ -28,7 +31,7 @@ class TitleBarButton(QWidget):
         self.setFixedSize(28, 28)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.is_hovered = False
-        
+
         # Атрибут для кэширования геометрии символа
         self._symbol_rect = QRectF()
 
@@ -53,22 +56,24 @@ class TitleBarButton(QWidget):
 
         # --- Ручная отрисовка символов для идеального вида ---
         pen = QPen(current_symbol)
-        pen.setCapStyle(Qt.PenCapStyle.RoundCap) # Сглаженные концы для всех линий
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)  # Сглаженные концы для всех линий
         painter.setPen(pen)
 
-        symbol_rect = self._symbol_rect # Используем кэшированное значение
+        symbol_rect = self._symbol_rect  # Используем кэшированное значение
         painter.setBrush(Qt.BrushStyle.NoBrush)
 
-        if self.symbol == "□": # Развернуть
+        if self.symbol == "□":  # Развернуть
             pen.setWidthF(1.2)
             painter.setPen(pen)
             painter.drawRect(symbol_rect.toRect())
-        elif self.symbol == "—": # Свернуть
+        elif self.symbol == "—":  # Свернуть
             pen.setWidthF(1.5)
             painter.setPen(pen)
             center_y = symbol_rect.center().y()
-            painter.drawLine(QPointF(symbol_rect.left(), center_y), QPointF(symbol_rect.right(), center_y))
-        elif self.symbol == "✕": # Закрыть
+            painter.drawLine(
+                QPointF(symbol_rect.left(), center_y), QPointF(symbol_rect.right(), center_y)
+            )
+        elif self.symbol == "✕":  # Закрыть
             pen.setWidthF(1.5)
             painter.setPen(pen)
             cross_rect = symbol_rect.adjusted(1.5, 1.5, -1.5, -1.5)
@@ -84,12 +89,12 @@ class TitleBarButton(QWidget):
         """Обрабатывает уход курсора мыши."""
         self.is_hovered = False
         self.update()
-        
+
     def mousePressEvent(self, event):
         """При нажатии левой кнопкой мыши испускаем сигнал 'clicked'."""
         if event.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit()
-            event.accept() # Важно: предотвращаем "прокликивание" на TitleBar
+            event.accept()  # Важно: предотвращаем "прокликивание" на TitleBar
         super().mousePressEvent(event)
 
 
@@ -98,6 +103,7 @@ class TitleBar(QWidget):
     Кастомный TitleBar для управления окном. Включает в себя иконку, заголовок
     и кастомные кнопки управления. Обрабатывает перетаскивание окна.
     """
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedHeight(45)
@@ -111,11 +117,12 @@ class TitleBar(QWidget):
         layout.setContentsMargins(15, 0, 10, 0)
         layout.setSpacing(10)
 
-        # TODO: Заменить на реальный путь к иконке
         icon_label = QLabel()
-        app_icon = QIcon() # QIcon(":/icons/assets/logo.png") 
+        # Главное окно уже загружает единый `assets/app.ico`; повторный файл
+        # или отдельный путь для заголовка не нужны.
+        app_icon = self.window().windowIcon()
         icon_label.setPixmap(app_icon.pixmap(QSize(22, 22)))
-        
+
         title_label = QLabel("WinSpector Pro")
         title_label.setStyleSheet("color: white; font-size: 14px; font-weight: 600;")
 
@@ -134,7 +141,7 @@ class TitleBar(QWidget):
         minimize_button.clicked.connect(self.window().showMinimized)
         maximize_button.clicked.connect(self.toggle_maximize)
         close_button.clicked.connect(self.window().close)
-        
+
         layout.addWidget(minimize_button)
         layout.addWidget(maximize_button)
         layout.addWidget(close_button)
@@ -155,7 +162,9 @@ class TitleBar(QWidget):
         if event.button() == Qt.MouseButton.LeftButton:
             # Рассчитываем смещение один раз при нажатии.
             # Преобразуем QPoint в QPointF для корректного вычитания.
-            self.drag_position = event.globalPosition() - QPointF(self.window().frameGeometry().topLeft())
+            self.drag_position = event.globalPosition() - QPointF(
+                self.window().frameGeometry().topLeft()
+            )
             event.accept()
 
     def mouseMoveEvent(self, event):
@@ -166,43 +175,8 @@ class TitleBar(QWidget):
         if event.buttons() == Qt.MouseButton.LeftButton and self.drag_position is not None:
             self.window().move((event.globalPosition() - self.drag_position).toPoint())
             event.accept()
-            
+
     def mouseReleaseEvent(self, event):
         """Сбрасывает позицию при отпускании кнопки мыши."""
         self.drag_position = None
         event.accept()
-
-
-# ==============================================================================
-#  Test Runner
-# ==============================================================================
-
-if __name__ == '__main__':
-    import sys
-    from PyQt6.QtWidgets import QMainWindow, QVBoxLayout, QWidget, QLabel
-
-    app = QApplication(sys.argv)
-
-    window = QMainWindow()
-    window.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-    window.setWindowTitle("Тест TitleBar")
-    window.resize(800, 600)
-    window.setStyleSheet("background-color: #21252b;")
-
-    title_bar = TitleBar(window)
-    
-    central_widget = QWidget()
-    main_layout = QVBoxLayout(central_widget)
-    main_layout.setContentsMargins(0, 0, 0, 0)
-    main_layout.setSpacing(0)
-    main_layout.addWidget(title_bar)
-
-    content_label = QLabel("Это тестовое содержимое окна.\nПеретащите окно за TitleBar.")
-    content_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-    content_label.setStyleSheet("color: white; font-size: 20px;")
-    main_layout.addWidget(content_label)
-
-    window.setCentralWidget(central_widget)
-
-    window.show()
-    sys.exit(app.exec())

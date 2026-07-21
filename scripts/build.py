@@ -6,26 +6,38 @@
 1. Компилирует ресурсы Qt (.qrc -> .py).
 2. Динамически генерирует .spec файл из шаблона.
 3. Запускает PyInstaller с сгенерированным .spec файлом.
-4. Создает готовый к распространению ZIP-архив.
-5. Поддерживает флаги для отладочной и релизной сборок.
+4. Создает единый исполняемый файл (onefile).
+5. По запросу создает ZIP-архив с исполняемым файлом.
+6. Поддерживает флаги для отладочной и релизной сборок.
 """
+
+import argparse
+import logging
 import os
+import re
 import shutil
 import subprocess
 import sys
-import re
-import logging
+import zipfile
 from pathlib import Path
-import argparse
 
 # --- 1. НАСТРОЙКА ЛОГИРОВАНИЯ ---
+# Консоль русской Windows работает в cp1251, а сообщения ниже содержат эмодзи.
+# Без переключения на UTF-8 первый же такой вывод роняет сборку с
+# UnicodeEncodeError. errors="replace" страхует на случай, если консоль
+# не поддерживает и UTF-8.
+for stream in (sys.stdout, sys.stderr):
+    reconfigure = getattr(stream, "reconfigure", None)
+    if reconfigure is not None:
+        reconfigure(encoding="utf-8", errors="replace")
+
 logging.basicConfig(
     level=logging.INFO,
     format="[%(levelname)s] %(message)s",
     handlers=[
-        logging.FileHandler("build.log", mode='w', encoding='utf-8'),
-        logging.StreamHandler(sys.stdout)
-    ]
+        logging.FileHandler("build.log", mode="w", encoding="utf-8"),
+        logging.StreamHandler(sys.stdout),
+    ],
 )
 
 # --- 2. ГЛАВНАЯ КОНФИГУРАЦИЯ ---
@@ -35,6 +47,7 @@ PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 DIST_PATH = PROJECT_ROOT / "dist"
 BUILD_PATH = PROJECT_ROOT / "build"
 ICON_PATH = PROJECT_ROOT / "assets" / "app.ico"
+
 
 def get_project_version() -> str:
     """Читает версию из __init__.py с помощью регулярного выражения."""
@@ -52,6 +65,7 @@ def get_project_version() -> str:
         logging.error(f"❌ Ошибка: {e}")
         sys.exit(1)
 
+
 APP_VERSION = get_project_version()
 
 # Конфигурация для .spec файла
@@ -62,15 +76,33 @@ SPEC_CONFIG = {
         ("assets", "assets"),
     ],
     "hiddenimports": [
-        "pygments", "google.generativeai.protos", "grpc._cython", "qasync",
-        "PyQt6.sip", "PyQt6.Qt6", "PyQt6.QtGui", "PyQt6.QtWidgets", "PyQt6.QtCore",
+        # google-genai работает поверх httpx и pydantic, gRPC ему не нужен —
+        # в отличие от снятого с поддержки google-generativeai.
+        "google.genai",
+        "httpx",
+        "h11",
+        "certifi",
+        "pydantic",
+        "qasync",
+        "PyQt6.sip",
+        "PyQt6.Qt6",
+        "PyQt6.QtGui",
+        "PyQt6.QtWidgets",
+        "PyQt6.QtCore",
     ],
     "excludes": [
-        "pytest", "PyQt5", "PySide6", "tkinter", "unittest", "pydoc", "pydoc_data",
-    ]
+        "pytest",
+        "PyQt5",
+        "PySide6",
+        "tkinter",
+        "unittest",
+        "pydoc",
+        "pydoc_data",
+    ],
 }
 
 # --- 3. ФУНКЦИИ-ПОМОЩНИКИ ---
+
 
 def run_command(command: list, description: str):
     """Выполняет команду и логирует ее вывод, принудительно используя UTF-8."""
@@ -79,36 +111,37 @@ def run_command(command: list, description: str):
         # ### УЛУЧШЕНИЕ: Создаем копию переменных окружения и устанавливаем кодировку ###
         env = os.environ.copy()
         env["PYTHONIOENCODING"] = "utf-8"
-        
+
         # ### ИЗМЕНЕНИЕ: Убираем text=True и encoding, будем декодировать вручную ###
-        process = subprocess.run(
-            command, check=True, capture_output=True, env=env
-        )
-        
+        process = subprocess.run(command, check=True, capture_output=True, env=env)
+
         # Декодируем вывод с игнорированием ошибок на всякий случай
-        stdout = process.stdout.decode('utf-8', errors='ignore')
-        stderr = process.stderr.decode('utf-8', errors='ignore')
+        stdout = process.stdout.decode("utf-8", errors="ignore")
+        stderr = process.stderr.decode("utf-8", errors="ignore")
 
         if stdout:
             logging.info(stdout)
         if stderr:
-            logging.warning(stderr) # Логируем stderr как предупреждение
+            logging.warning(stderr)  # Логируем stderr как предупреждение
 
         logging.info(f"Успешно: {description}.")
 
     except subprocess.CalledProcessError as e:
         logging.error(f"❌ ОШИБКА: {description} завершился с ошибкой.")
         # Декодируем вывод из исключения тоже
-        stdout = e.stdout.decode('utf-8', errors='ignore')
-        stderr = e.stderr.decode('utf-8', errors='ignore')
+        stdout = e.stdout.decode("utf-8", errors="ignore")
+        stderr = e.stderr.decode("utf-8", errors="ignore")
         if stdout:
             logging.error(stdout)
         if stderr:
             logging.error(stderr)
         sys.exit(1)
     except FileNotFoundError:
-        logging.error(f"❌ Ошибка: Команда '{command[0]}' не найдена. Убедитесь, что она установлена и доступна в PATH.")
+        logging.error(
+            f"❌ Ошибка: Команда '{command[0]}' не найдена. Убедитесь, что она установлена и доступна в PATH."
+        )
         sys.exit(1)
+
 
 def get_version_file_info() -> Path:
     """Создает временный файл с информацией о версии для Windows."""
@@ -116,8 +149,8 @@ def get_version_file_info() -> Path:
 # UTF-8
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=({APP_VERSION.replace('.', ',')}, 0),
-    prodvers=({APP_VERSION.replace('.', ',')}, 0),
+    filevers=({APP_VERSION.replace(".", ",")}, 0),
+    prodvers=({APP_VERSION.replace(".", ",")}, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -134,11 +167,11 @@ VSVersionInfo(
         StringStruct(u'FileDescription', u'WinSpector Pro - AI-Powered Windows Optimizer'),
         StringStruct(u'FileVersion', u'{APP_VERSION}'),
         StringStruct(u'InternalName', u'{APP_NAME}'),
-        StringStruct(u'LegalCopyright', u'© CLC corporation. All rights reserved.'),
+        StringStruct(u'LegalCopyright', u'© 2025-2026 deeCaT (CLC corporation). All rights reserved.'),
         StringStruct(u'OriginalFilename', u'{APP_NAME}.exe'),
         StringStruct(u'ProductName', u'WinSpector Pro'),
         StringStruct(u'ProductVersion', u'{APP_VERSION}')])
-      ]), 
+      ]),
     VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
   ]
 )
@@ -147,6 +180,7 @@ VSVersionInfo(
     version_file_path.write_text(version_file_content, encoding="utf-8")
     logging.info(f"📄 Информация о версии {APP_VERSION} создана.")
     return version_file_path
+
 
 def generate_spec_from_template(is_debug: bool, version_file_path: Path) -> Path:
     """Динамически генерирует .spec файл из шаблона."""
@@ -162,64 +196,67 @@ def generate_spec_from_template(is_debug: bool, version_file_path: Path) -> Path
 
     datas_list = [
         f"('{str(PROJECT_ROOT / src).replace(os.sep, '/')}', '{dest}')"
-        for src, dest in SPEC_CONFIG['datas']
+        for src, dest in SPEC_CONFIG["datas"]
     ]
 
     spec_content = template_content.format(
         entry_point=(PROJECT_ROOT / ENTRY_POINT).as_posix(),
         project_root=PROJECT_ROOT.as_posix(),
         datas=",".join(datas_list),
-        hiddenimports=SPEC_CONFIG['hiddenimports'],
-        excludes=SPEC_CONFIG['excludes'],
+        hiddenimports=SPEC_CONFIG["hiddenimports"],
+        excludes=SPEC_CONFIG["excludes"],
         app_name=APP_NAME,
-        debug='True' if is_debug else 'False',
-        console='True' if is_debug else 'False',
+        debug="True" if is_debug else "False",
+        console="True" if is_debug else "False",
         icon_path=ICON_PATH.as_posix(),
         version_file_path=version_file_path.as_posix(),
     )
 
-    spec_path.write_text(spec_content, encoding='utf-8')
+    spec_path.write_text(spec_content, encoding="utf-8")
     logging.info(f"Файл спецификации сохранен: {spec_path}")
     return spec_path
 
-def create_distribution_archive():
-    """Создает ZIP-архив из собранного приложения."""
-    # ### ИСПРАВЛЕНИЕ: Правильно указываем пути для архивации ###
-    
-    # Имя папки, которую создал PyInstaller внутри 'dist'
-    source_folder_name = APP_NAME 
-    # Путь к этой папке
-    source_path = DIST_PATH / source_folder_name
-    
-    # Имя для ZIP-архива без расширения
-    archive_name = f"{APP_NAME}-v{APP_VERSION}"
-    # Путь, где будет создан архив (на уровень выше, в самой папке dist)
-    archive_path_base = DIST_PATH / archive_name
 
-    logging.info(f"Создание архива: {archive_path_base}.zip")
-    
-    shutil.make_archive(
-        base_name=str(archive_path_base),
-        format='zip',
-        root_dir=str(DIST_PATH), # Указываем, что "корень" для архивации - это папка dist
-        base_dir=source_folder_name # Указываем, какую именно папку внутри root_dir нужно упаковать
-    )
+def create_distribution_archive():
+    """Создает ZIP-архив с собранным onefile-приложением."""
+    executable_path = DIST_PATH / f"{APP_NAME}.exe"
+    if not executable_path.is_file():
+        raise FileNotFoundError(
+            f"Исполняемый файл не найден: {executable_path}. Проверьте вывод PyInstaller."
+        )
+
+    archive_name = f"{APP_NAME}-v{APP_VERSION}"
+    archive_path = DIST_PATH / f"{archive_name}.zip"
+
+    logging.info(f"Создание архива: {archive_path}")
+
+    with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.write(executable_path, executable_path.name)
     logging.info("Архив успешно создан.")
+
 
 def main():
     """Основная функция сборки."""
     parser = argparse.ArgumentParser(description="Скрипт сборки WinSpector Pro.")
-    parser.add_argument("--debug", action="store_true", help="Собрать консольную версию для отладки.")
-    parser.add_argument("--no-clean", action="store_true", help="Не удалять временные файлы после сборки.")
-    parser.add_argument("--no-archive", action="store_true", help="Не создавать ZIP-архив после сборки.")
+    parser.add_argument(
+        "--debug", action="store_true", help="Собрать консольную версию для отладки."
+    )
+    parser.add_argument(
+        "--no-clean", action="store_true", help="Не удалять временные файлы после сборки."
+    )
+    parser.add_argument(
+        "--archive", action="store_true", help="Дополнительно создать ZIP-архив с EXE."
+    )
     args = parser.parse_args()
 
     build_type = "DEBUG" if args.debug else "RELEASE"
     logging.info(f"🚀 Начало сборки WinSpector Pro v{APP_VERSION} ({build_type})...")
 
     # 1. Очистка
-    if DIST_PATH.exists(): shutil.rmtree(DIST_PATH)
-    if BUILD_PATH.exists(): shutil.rmtree(BUILD_PATH)
+    if DIST_PATH.exists():
+        shutil.rmtree(DIST_PATH)
+    if BUILD_PATH.exists():
+        shutil.rmtree(BUILD_PATH)
     DIST_PATH.mkdir(exist_ok=True)
     BUILD_PATH.mkdir(exist_ok=True)
 
@@ -231,21 +268,26 @@ def main():
     spec_file = generate_spec_from_template(args.debug, version_file)
 
     # 4. Запуск PyInstaller
-    run_command([sys.executable, "-m", "PyInstaller", str(spec_file), "--noconfirm"], 
-                "Сборка приложения с PyInstaller")
-    
+    run_command(
+        [sys.executable, "-m", "PyInstaller", str(spec_file), "--noconfirm"],
+        "Сборка приложения с PyInstaller",
+    )
+
     # 5. Пост-сборочные шаги
-    if not args.no_archive:
+    if args.archive:
         create_distribution_archive()
 
     # 6. Финальная очистка
     if not args.no_clean:
         logging.info("✨ Финальная очистка...")
-        if BUILD_PATH.exists(): shutil.rmtree(BUILD_PATH)
-        if spec_file.exists(): spec_file.unlink()
-        logging.info(f"   - Временные файлы удалены.")
+        if BUILD_PATH.exists():
+            shutil.rmtree(BUILD_PATH)
+        if spec_file.exists():
+            spec_file.unlink()
+        logging.info("   - Временные файлы удалены.")
 
     logging.info("🏁 Готово!")
+
 
 if __name__ == "__main__":
     main()

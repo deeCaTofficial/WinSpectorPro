@@ -1,0 +1,75 @@
+[project]
+name = "winspector-pro"
+version = "1.0.4"
+description = "Оптимизатор Windows на базе генеративного ИИ"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+
+# Зависимости живут в requirements.in / requirements-dev.in и фиксируются
+# через pip-compile; здесь дублировать их не нужно.
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+extend-exclude = [
+    # Сгенерированный ресурсный модуль Qt: 82k строк, правится только
+    # пересборкой через scripts/compile_resources.py.
+    "src/winspector/resources/assets_rc.py",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle
+    "F",    # pyflakes
+    "W",    # pycodestyle warnings
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+    "PTH",  # использование pathlib
+    "RUF",  # правила самого ruff
+]
+ignore = [
+    "E501",    # длину строк контролирует форматтер
+    "RUF001",  # кириллица в строках — это язык интерфейса, не опечатка
+    "RUF002",
+    "RUF003",
+    # Переменные окружения Windows регистронезависимы, а канонічное написание
+    # именно смешанное (`SystemRoot`, `ProgramFiles`) — так их пишет сама ОС.
+    "SIM112",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# В тестах допустимы «магические» значения и длинные фикстуры.
+"tests/**" = ["B011", "SIM117"]
+# Виджеты написаны в компактном однострочном стиле до внедрения линтера.
+# Переписывать рабочую отрисовку ради косметики рискованнее, чем оставить как есть.
+"src/winspector/gui/**" = ["E701", "SIM108", "PTH100", "PTH118", "PTH120", "RUF012"]
+# Внутренний инструмент разработчика для наполнения базы знаний.
+# В поставку не входит, требования к стилю мягче.
+"scripts/researcher.py" = ["W293", "SIM102", "PTH"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["winspector", "src"]
+
+[tool.coverage.run]
+source = ["src/winspector"]
+omit = [
+    # Сгенерированный модуль ресурсов Qt.
+    "src/winspector/resources/*",
+    # Точки входа: требуют реального запуска процесса и прав администратора,
+    # поэтому проверяются сквозным прогоном, а не модульными тестами.
+    "src/winspector/__main__.py",
+    "src/winspector/application.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]

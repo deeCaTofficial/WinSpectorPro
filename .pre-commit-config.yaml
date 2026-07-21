@@ -1,19 +1,39 @@
-# Конфигурация для pre-commit.
-# Определяет, какие проверки (хуки) будут запускаться перед коммитом.
+# Конфигурация pre-commit: проверки, выполняемые перед коммитом.
+# Установка:  pre-commit install
+# Прогон по всему репозиторию:  pre-commit run --all-files
+
+# Сгенерированный ресурсный модуль Qt правится только пересборкой
+# через scripts/compile_resources.py, руками его трогать нельзя.
+exclude: ^src/winspector/resources/assets_rc\.py$
 
 repos:
--   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
     hooks:
-    -   id: check-yaml           # Проверяет синтаксис YAML файлов
-    -   id: check-toml           # Проверяет синтаксис TOML файлов
-    -   id: end-of-file-fixer    # Гарантирует, что файлы заканчиваются пустой строкой
-    -   id: trailing-whitespace  # Удаляет лишние пробелы в конце строк
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: mixed-line-ending
+        args: [--fix=lf]
 
--   repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.1
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.22
     hooks:
-    # Запускает `ruff format` для автоматического форматирования кода
-    -   id: ruff-format
-    # Запускает `ruff --fix` для автоматического исправления ошибок
-    -   id: ruff
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      # Быстрые тесты ядра. Медленные (пул процессов, реальный WMI)
+      # остаются для CI, чтобы не тормозить коммит.
+      - id: pytest-core
+        name: pytest (ядро)
+        entry: python -m pytest tests/ -q -m "not slow and not windows" --no-header
+        language: system
+        pass_filenames: false
+        types: [python]
