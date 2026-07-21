@@ -88,5 +88,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: WinSpectorPro-dist
-          path: dist/*.zip
+          path: dist/WinSpectorPro.exe
           if-no-files-found: error
