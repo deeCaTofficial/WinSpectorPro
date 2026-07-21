@@ -13,11 +13,6 @@ license = { file = "LICENSE" }
 line-length = 100
 target-version = "py310"
 src = ["src", "tests"]
-extend-exclude = [
-    # Сгенерированный ресурсный модуль Qt: 82k строк, правится только
-    # пересборкой через scripts/compile_resources.py.
-    "src/winspector/resources/assets_rc.py",
-]
 
 [tool.ruff.lint]
 select = [
@@ -58,8 +53,6 @@ known-first-party = ["winspector", "src"]
 [tool.coverage.run]
 source = ["src/winspector"]
 omit = [
-    # Сгенерированный модуль ресурсов Qt.
-    "src/winspector/resources/*",
     # Точки входа: требуют реального запуска процесса и прав администратора,
     # поэтому проверяются сквозным прогоном, а не модульными тестами.
     "src/winspector/__main__.py",

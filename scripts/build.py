@@ -3,12 +3,11 @@
 Профессиональный скрипт для сборки WinSpector Pro с помощью PyInstaller.
 
 Этот скрипт выполняет полный цикл сборки:
-1. Компилирует ресурсы Qt (.qrc -> .py).
-2. Динамически генерирует .spec файл из шаблона.
-3. Запускает PyInstaller с сгенерированным .spec файлом.
-4. Создает единый исполняемый файл (onefile).
-5. По запросу создает ZIP-архив с исполняемым файлом.
-6. Поддерживает флаги для отладочной и релизной сборок.
+1. Динамически генерирует .spec файл из шаблона.
+2. Запускает PyInstaller с сгенерированным .spec файлом.
+3. Создает единый исполняемый файл (onefile).
+4. По запросу создает ZIP-архив с исполняемым файлом.
+5. Поддерживает флаги для отладочной и релизной сборок.
 """
 
 import argparse
@@ -73,7 +72,8 @@ SPEC_CONFIG = {
     "datas": [
         ("src/winspector/data/knowledge_base", "winspector/data/knowledge_base"),
         ("src/winspector/resources/styles", "winspector/resources/styles"),
-        ("assets", "assets"),
+        ("assets/app.ico", "assets"),
+        ("assets/rocket.png", "assets"),
     ],
     "hiddenimports": [
         # google-genai работает поверх httpx и pydantic, gRPC ему не нужен —
@@ -260,8 +260,7 @@ def main():
     DIST_PATH.mkdir(exist_ok=True)
     BUILD_PATH.mkdir(exist_ok=True)
 
-    # 2. Пред-сборочные шаги
-    run_command([sys.executable, "scripts/compile_resources.py"], "Компиляция файлов ресурсов Qt")
+    # 2. Подготовка информации о версии
     version_file = get_version_file_info()
 
     # 3. Генерация .spec файла
