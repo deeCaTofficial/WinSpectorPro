@@ -20,6 +20,7 @@
 
 <p align="center">
   <a href="https://github.com/deeCaTofficial/WinSpectorPro/releases/latest"><img src="https://img.shields.io/badge/Download-latest%20release-2ea44f?style=for-the-badge&logo=github" alt="Download latest release"></a>
+  <a href="https://github.com/deeCaTofficial/WinSpectorPro/stargazers"><img src="https://img.shields.io/github/stars/deeCaTofficial/WinSpectorPro?style=for-the-badge&logo=github&label=%E2%AD%90%20Star&color=e3b341" alt="Star on GitHub"></a>
 </p>
 
 <p align="center">
