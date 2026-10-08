@@ -249,6 +249,19 @@ class TestOfflineRun:
 
         assert "Gemini" in report
 
+    async def test_progress_does_not_mention_ai(self, wired_core):
+        """Без ИИ строка состояния не должна обещать ИИ-анализ."""
+        core, _ = wired_core
+        messages: list[str] = []
+
+        await core.run_autonomous_optimization(
+            progress_callback=lambda value, text: messages.append(text)
+        )
+        await core.shutdown()
+
+        assert "Поиск мусора и остатков программ..." in messages
+        assert not [text for text in messages if "ИИ" in text]
+
 
 class TestGracefulDegradation:
     """Сбой ИИ посреди сценария не должен обрывать работу."""

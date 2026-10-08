@@ -343,7 +343,12 @@ class WinSpectorCore:
     async def _step_collect_data(
         self, session: OptimizationSessionData, progress: ProgressCallback
     ) -> None:
-        progress(40, "Сбор данных для ИИ-анализа...")
+        progress(
+            40,
+            "Сбор данных для ИИ-анализа..."
+            if self.ai_enabled
+            else "Поиск мусора и остатков программ...",
+        )
 
         components_task = (
             self._cached_components_task() or self.windows_optimizer.get_system_components()
