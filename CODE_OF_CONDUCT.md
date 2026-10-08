@@ -1,62 +1,88 @@
-# Кодекс поведения проекта WinSpector Pro
+<p align="center">
+  <img src="https://img.shields.io/badge/-English-1f6feb?style=for-the-badge" alt="English">
+  <a href="./CODE_OF_CONDUCT_RU.md"><img src="https://img.shields.io/badge/-%D0%A0%D1%83%D1%81%D1%81%D0%BA%D0%B8%D0%B9-30363d?style=for-the-badge" alt="Русский"></a>
+</p>
 
-## 1. Наше обязательство (Our Pledge)
+# Code of Conduct
 
-Мы, как участники, контрибьюторы и лидеры проекта **WinSpector Pro**, обязуемся сделать участие в нашем сообществе свободным от притеснений для каждого, независимо от возраста, телосложения, видимых или невидимых ограниченных возможностей, этнической принадлежности, сексуальных характеристик, гендерной идентичности и самовыражения, уровня опыта, образования, социально-экономического статуса, национальности, внешности, расы, религии или сексуальной идентичности и ориентации.
+## Our Pledge
 
-Мы стремимся действовать и взаимодействовать способами, которые способствуют созданию **открытого, гостеприимного, разнообразного, инклюзивного и здорового сообщества.**
+We as members, contributors, and maintainers of WinSpector Pro pledge to make participation
+in our community a harassment-free experience for everyone, regardless of age, body size,
+visible or invisible disability, ethnicity, sex characteristics, gender identity and
+expression, level of experience, education, socio-economic status, nationality, personal
+appearance, race, caste, color, religion, or sexual identity and orientation.
 
-## 2. Наши стандарты (Our Standards)
+We pledge to act and interact in ways that contribute to an open, welcoming, diverse,
+inclusive, and healthy community.
 
-> Мы — сообщество профессионалов, и мы ведем себя профессионально.
+## Our Standards
 
-#### ✓ Примеры поведения, которые способствуют созданию позитивной среды:
+Examples of behavior that contributes to a positive environment:
 
-*   **Проявлять эмпатию и доброту** по отношению к другим людям.
-*   **Уважать различные мнения,** точки зрения и опыт, даже если вы с ними не согласны.
-*   **Предоставлять и корректно воспринимать конструктивную обратную связь.** Фокусироваться на коде, а не на личности автора.
-*   **Принимать ответственность** и приносить извинения тем, на кого повлияли наши ошибки, и извлекать уроки из этого опыта.
-*   **Фокусироваться на том, что лучше для всего сообщества** и для проекта в целом.
+- Being kind and patient with other people, including newcomers
+- Being respectful of differing opinions, viewpoints, and experiences
+- Giving and gracefully accepting constructive feedback — about the code, not the person
+- Accepting responsibility, apologizing to those affected by our mistakes, and learning from them
+- Focusing on what is best for the community and the project as a whole
 
-#### ✗ Примеры неприемлемого поведения:
+Examples of unacceptable behavior:
 
-*   Использование сексуализированных выражений, изображений, а также нежелательное сексуальное внимание или домогательства.
-*   Троллинг, оскорбительные или уничижительные комментарии, а также нападки личного или политического характера (`ad hominem`).
-*   Публичные или частные домогательства.
-*   Публикация личной информации других лиц (например, физического или электронного адреса) без их явного разрешения.
-*   Любое другое поведение, которое можно было бы обоснованно счесть неуместным в профессиональной среде.
+- Sexualized language or imagery, and sexual attention or advances of any kind
+- Trolling, insulting or derogatory comments, and personal or political attacks
+- Public or private harassment
+- Publishing others' private information, such as a physical or email address,
+  without their explicit permission
+- Other conduct which could reasonably be considered inappropriate in a professional setting
 
-## 3. Обязанности по исполнению (Enforcement Responsibilities)
+## Enforcement Responsibilities
 
-**Лидеры сообщества** (владелец репозитория и назначенные мейнтейнеры) несут ответственность за разъяснение и обеспечение соблюдения наших стандартов. Они будут принимать справедливые и адекватные корректирующие меры в ответ на любое поведение, которое они сочтут неуместным, угрожающим, оскорбительным или вредным.
+The maintainers of the project are responsible for clarifying and enforcing these standards.
+They will take appropriate and fair corrective action in response to any behavior they deem
+inappropriate, threatening, offensive, or harmful.
 
-Лидеры сообщества имеют право и обязанность удалять, редактировать или отклонять комментарии, коммиты, код, правки в wiki, issues и другие вклады, которые не соответствуют настоящему Кодексу поведения. Причины таких решений будут сообщаться, когда это уместно.
+Maintainers have the right and responsibility to remove, edit, or reject comments, commits,
+code, issues, pull requests, and other contributions that do not align with this Code of
+Conduct, and will explain the reasons for moderation decisions when appropriate.
 
-## 4. Область применения (Scope)
+## Scope
 
-Настоящий Кодекс поведения применяется:
-1.  **В рамках проекта:** Во всех официальных пространствах проекта, таких как GitHub Issues, Pull Requests, Gitter, Discord и т.д.
-2.  **В публичном пространстве:** Когда человек официально представляет проект. Примеры: использование официального email, выступление от имени проекта в социальных сетях или на онлайн/офлайн мероприятиях.
+This Code of Conduct applies within all project spaces — the repository, its issues, pull
+requests and discussions — and also when someone officially represents the project in public
+spaces, for example by posting on its behalf.
 
-## 5. Сообщение о нарушениях (Reporting Violations)
+## Reporting
 
-О случаях оскорбительного, домогающегося или иного неприемлемого поведения следует сообщать команде проекта. Все сообщения будут рассмотрены оперативно и конфиденциально.
+Please report abusive, harassing, or otherwise unacceptable behavior privately rather than in
+a public issue, so the person affected is not exposed again:
 
-#### Публичное сообщение (предпочтительный способ)
+1. Open the **⋯** menu on the comment, issue, or pull request and choose **Report content**.
+2. Choose **Report to repository admins** to reach the project's maintainers, or **Report abuse**
+   to send the report to GitHub staff.
 
-Если нарушение произошло в публичном пространстве (например, в комментариях к Issue или Pull Request), рекомендуется создать новый **[Issue](https://github.com/deeCaTofficial/WinSpectorPro/issues/new)** в репозитории.
--   Пожалуйста, используйте тег `conduct` для таких обращений.
--   Опишите инцидент максимально подробно, приложив ссылки и скриншоты, если это возможно.
+GitHub keeps the reporter's identity private. See
+[Reporting abuse or spam](https://docs.github.com/en/communities/maintaining-your-safety-on-github/reporting-abuse-or-spam)
+for details. All reports will be reviewed promptly and fairly, and maintainers will respect the
+privacy of the reporter.
 
-#### Конфиденциальное сообщение
+## Enforcement Guidelines
 
-Если вы хотите сообщить о нарушении конфиденциально, инцидент затрагивает личную переписку или касается одного из лидеров сообщества, пожалуйста, свяжитесь с **владельцем репозитория (deeCaTofficial)** напрямую через его профиль на GitHub.
+Maintainers will follow these guidelines in determining the consequences of any action they
+deem in violation of this Code of Conduct:
 
-Команда проекта обязуется соблюдать конфиденциальность в отношении лица, сообщившего об инциденте.
+1. **Correction.** For inappropriate language or other behavior deemed unprofessional or
+   unwelcome: a private, written warning explaining why the behavior was inappropriate.
+   A public apology may be requested.
+2. **Warning.** For a violation through a single incident or series of actions: a warning with
+   consequences for continued behavior, and no interaction with the people involved for a
+   specified period of time. Violating these terms may lead to a temporary or permanent ban.
+3. **Temporary ban.** For a serious violation, including sustained inappropriate behavior:
+   a temporary ban from any interaction with the project. Violating these terms may lead to
+   a permanent ban.
+4. **Permanent ban.** For a pattern of violations, harassment of an individual, or aggression
+   toward or disparagement of groups of people: a permanent ban from any interaction with the
+   project.
 
-## 6. Атрибуция
+## Attribution
 
-Настоящий Кодекс поведения адаптирован из [Contributor Covenant][homepage], версия 2.1, доступного по адресу [https://www.contributor-covenant.org/version/2/1/code_of_conduct.html][v2.1].
-
-[homepage]: https://www.contributor-covenant.org
-[v2.1]: https://www.contributor-covenant.org/version/2/1/code_of_conduct.html
+Adapted from the [Contributor Covenant 2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct.html).
