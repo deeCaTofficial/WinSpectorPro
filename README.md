@@ -52,7 +52,7 @@
 <p align="center">
   <img src="./docs/media/demo-en.gif" alt="WinSpector Pro: launch, restore point, system analysis, optimization and the report" width="760">
 </p>
-<p align="center"><sub>A real run, recorded from the app itself (processing sped up). The junk on this PC had already been removed by an earlier run, so the report shows the space that waits for running programs to close.</sub></p>
+<p align="center"><sub>A real run on a working PC, recorded from the app itself (processing sped up). Every number in the report is from that run.</sub></p>
 
 ## Screenshots
 
