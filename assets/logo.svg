@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- WinSpector Pro: буква W, последний штрих которой становится галочкой. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3D7CF0"/>
+      <stop offset="1" stop-color="#1F4FC2"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.18"/>
+      <stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="32" y="32" width="448" height="448" rx="112" fill="url(#tile)"/>
+  <rect x="32" y="32" width="448" height="448" rx="112" fill="url(#shine)"/>
+  <rect x="33" y="33" width="446" height="446" rx="111" fill="none"
+        stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="2"/>
+  <g transform="translate(0 12)" fill="none" stroke="#FFFFFF" stroke-width="46"
+     stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="112,196 178,338 240,226 300,338" stroke-opacity="0.6"/>
+    <polyline points="240,226 300,338 404,150"/>
+  </g>
+</svg>

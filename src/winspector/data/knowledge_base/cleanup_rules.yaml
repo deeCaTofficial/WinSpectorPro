@@ -5,6 +5,8 @@
   - '%TEMP%'
   - '%WINDIR%\Temp'
   safety: high
+  min_age_hours: 24
+  atomic_subdirs: true
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -19,6 +21,7 @@
   paths:
   - C:\Windows\SoftwareDistribution\Download
   safety: high
+  min_age_hours: 24
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -32,11 +35,18 @@
 - category_id: microsoft_edge_cache
   description_ru: Кэш браузера Microsoft Edge
   cleanup_type: folder
+  safety: high
+  requires_closed:
+  - msedge.exe
   paths:
-  - '%LOCALAPPDATA%\Microsoft\Edge\User Data\Default\Cache'
-  - '%LOCALAPPDATA%\Microsoft\Edge\User Data\Default\Code Cache'
-  - '%LOCALAPPDATA%\Microsoft\Edge\User Data\Default\GPUCache'
-  safety: medium
+  - "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\*\\Cache"
+  - "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\*\\Code Cache"
+  - "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\*\\GPUCache"
+  - "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\GrShaderCache"
+  - "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\ShaderCache"
+  - "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\component_crx_cache"
+  - "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\*\\DawnWebGPUCache"
+  - "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\*\\DawnGraphiteCache"
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -54,6 +64,8 @@
   - C:\Program Files (x86)\Steam\dumps
   - C:\Program Files (x86)\Steam\appcache\httpcache
   safety: high
+  requires_closed:
+  - steam.exe
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -68,6 +80,8 @@
   paths:
   - C:\Program Files (x86)\Steam\steamapps\shadercache
   safety: medium
+  requires_closed:
+  - steam.exe
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -80,10 +94,12 @@
 - category_id: epic_games_launcher_cache_and_logs
   description_ru: Кэш и логи Epic Games Launcher
   cleanup_type: folder
+  safety: high
+  requires_closed:
+  - EpicGamesLauncher.exe
   paths:
   - '%LOCALAPPDATA%\EpicGamesLauncher\Saved\Logs'
-  - '%LOCALAPPDATA%\EpicGamesLauncher\Saved\webcache'
-  safety: high
+  - '%LOCALAPPDATA%\EpicGamesLauncher\Saved\webcache*'
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -95,11 +111,13 @@
 - category_id: nvidia_driver_cache_and_logs
   description_ru: Кэш драйверов и шейдеров NVIDIA
   cleanup_type: folder
+  safety: high
   paths:
   - '%PROGRAMDATA%\NVIDIA Corporation\Downloader'
   - '%LOCALAPPDATA%\NVIDIA\DXCache'
   - '%LOCALAPPDATA%\NVIDIA\GLCache'
-  safety: medium
+  - '%USERPROFILE%\AppData\LocalLow\NVIDIA\DXCache'
+  min_age_hours: 720
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -111,11 +129,10 @@
 - category_id: amd_driver_cache_and_logs
   description_ru: Кэш драйверов и шейдеров AMD
   cleanup_type: folder
-  paths:
-  - C:\AMD
-  - '%LOCALAPPDATA%\AMD\DXCache'
-  - '%LOCALAPPDATA%\AMD\GLCache'
   safety: medium
+  paths:
+  - "%LOCALAPPDATA%\\AMD\\DXCache"
+  - "%LOCALAPPDATA%\\AMD\\GLCache"
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -134,6 +151,8 @@
   - '%APPDATA%\Code\logs'
   - '%APPDATA%\Code\CachedData'
   safety: high
+  requires_closed:
+  - Code.exe
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -150,6 +169,9 @@
   - '%APPDATA%\obs-studio\logs'
   - '%APPDATA%\obs-studio\crashes'
   safety: high
+  requires_closed:
+  - obs64.exe
+  min_age_hours: 168
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -164,6 +186,7 @@
   paths:
   - '%LOCALAPPDATA%\Microsoft\OneDrive\logs'
   safety: high
+  min_age_hours: 168
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -175,6 +198,11 @@
   - '%LOCALAPPDATA%\Microsoft\Office\16.0\OfficeFileCache'
   - '%LOCALAPPDATA%\Microsoft\Office\16.0\Logs'
   safety: medium
+  requires_closed:
+  - WINWORD.EXE
+  - EXCEL.EXE
+  - POWERPNT.EXE
+  - OUTLOOK.EXE
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -188,10 +216,14 @@
 - category_id: paradox_launcher_cache_and_logs
   description_ru: Кэш и логи Paradox Launcher
   cleanup_type: folder
+  safety: medium
+  requires_closed:
+  - Paradox Launcher.exe
   paths:
   - '%LOCALAPPDATA%\Paradox Interactive\launcher-v2\logs'
-  - '%LOCALAPPDATA%\Paradox Interactive\launcher-v2\cache'
-  safety: medium
+  - '%LOCALAPPDATA%\Paradox Interactive\launcher-v2\chromium-data\Cache'
+  - '%LOCALAPPDATA%\Paradox Interactive\launcher-v2\chromium-data\Code Cache'
+  - '%LOCALAPPDATA%\Paradox Interactive\launcher-v2\chromium-data\GPUCache'
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -203,9 +235,10 @@
 - category_id: python_pip_cache
   description_ru: Кэш пакетов Python (pip)
   cleanup_type: folder
-  paths:
-  - '%LOCALAPPDATA%\pip\cache'
   safety: medium
+  paths:
+  - "%LOCALAPPDATA%\\pip\\cache"
+  - "%LOCALAPPDATA%\\pip-tools\\Cache"
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -217,6 +250,7 @@
   - '%LOCALAPPDATA%\Discovery\Saved\Logs'
   - '%LOCALAPPDATA%\Discovery\Saved\Crashes'
   safety: high
+  min_age_hours: 168
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -248,6 +282,7 @@
   - '%PROGRAMDATA%\Microsoft\Windows\WER\ReportArchive'
   - '%PROGRAMDATA%\Microsoft\Windows\WER\ReportQueue'
   safety: high
+  min_age_hours: 168
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -272,6 +307,7 @@
   - C:\Windows\Logs\WindowsUpdate
   - C:\Windows\Logs\DISM
   safety: high
+  min_age_hours: 168
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -286,6 +322,7 @@
   paths:
   - '%LOCALAPPDATA%\CrashDumps'
   safety: high
+  min_age_hours: 168
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -298,10 +335,12 @@
 - category_id: nvidia_telemetry_logs
   description_ru: Логи и телеметрия NVIDIA
   cleanup_type: folder
+  safety: high
+  min_age_hours: 168
   paths:
   - '%PROGRAMDATA%\NVIDIA Corporation\NvStreamSrv\logs'
   - '%PROGRAMDATA%\NVIDIA Corporation\NvTelemetry'
-  safety: high
+  - '%PROGRAMDATA%\NVIDIA Corporation\NVIDIA App\Logs'
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -317,7 +356,7 @@
   cleanup_type: folder
   paths:
   - '%PROGRAMDATA%\Microsoft\VisualStudio\Packages'
-  safety: medium
+  safety: critical
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -332,6 +371,7 @@
   paths:
   - C:\Windows\Logs\CBS
   safety: high
+  min_age_hours: 168
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -374,6 +414,7 @@
   paths:
   - '%PROGRAMDATA%\Microsoft\Search\Data\Applications\Windows\GatherLogs'
   safety: high
+  min_age_hours: 168
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -405,6 +446,7 @@
   paths:
   - C:\Windows\Minidump
   safety: high
+  min_age_hours: 168
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -424,7 +466,9 @@
   - '%APPDATA%\Discord\Code Cache'
   - '%APPDATA%\Discord\GPUCache'
   - '%APPDATA%\Discord\logs'
-  safety: medium
+  safety: high
+  requires_closed:
+  - Discord.exe
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -437,10 +481,11 @@
 - category_id: steam_additional_cache
   description_ru: Дополнительный кэш Steam (загрузки, HTML)
   cleanup_type: folder
+  safety: high
+  requires_closed:
+  - steam.exe
   paths:
-  - C:\Program Files (x86)\Steam\depotcache
-  - '%LOCALAPPDATA%\Steam\htmlcache'
-  safety: medium
+  - "%LOCALAPPDATA%\\Steam\\htmlcache"
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -462,6 +507,8 @@
   - '%LOCALAPPDATA%\Microsoft\Edge\User Data\Default\Local Storage'
   - '%LOCALAPPDATA%\Microsoft\Edge\User Data\Default\Media Cache'
   safety: medium
+  requires_closed:
+  - msedge.exe
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -499,7 +546,7 @@
   paths:
   - '%APPDATA%\Microsoft\Windows\Recent\AutomaticDestinations'
   - '%APPDATA%\Microsoft\Windows\Recent\CustomDestinations'
-  safety: medium
+  safety: critical
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -514,7 +561,7 @@
   paths:
   - C:\Windows\Panther
   - C:\Windows\Logs\Setup
-  safety: high
+  safety: medium
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -528,6 +575,7 @@
   paths:
   - '%PROGRAMDATA%\Microsoft\Windows Defender\Support'
   safety: high
+  min_age_hours: 168
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -544,6 +592,9 @@
   - '%LOCALAPPDATA%\Microsoft\Edge\User Data\Default\Logs'
   - '%LOCALAPPDATA%\Microsoft\Edge\User Data\Crashpad'
   safety: high
+  requires_closed:
+  - msedge.exe
+  min_age_hours: 168
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -591,7 +642,7 @@
   cleanup_type: folder
   paths:
   - C:\Program Files (x86)\Steam\steamapps\temp
-  safety: high
+  safety: medium
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -607,7 +658,9 @@
   paths:
   - '%APPDATA%\Code\CachedExtensionVSIXs'
   - '%USERPROFILE%\.vscode\extensions\.obsolete'
-  safety: medium
+  safety: high
+  requires_closed:
+  - Code.exe
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -622,7 +675,7 @@
   cleanup_type: folder
   paths:
   - C:\Windows\System32\LogFiles\WMI\RtBackup
-  safety: high
+  safety: medium
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -636,7 +689,7 @@
   cleanup_type: folder
   paths:
   - '%PROGRAMDATA%\Microsoft\Windows Defender\Scans\History\Results'
-  safety: high
+  safety: medium
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -665,6 +718,8 @@
   paths:
   - '%APPDATA%\Code\User\workspaceStorage'
   safety: medium
+  requires_closed:
+  - Code.exe
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -681,6 +736,8 @@
   - C:\Windows\ServiceProfiles\LocalService\AppData\Local\Temp
   - C:\Windows\ServiceProfiles\NetworkService\AppData\Local\Temp
   safety: high
+  min_age_hours: 24
+  atomic_subdirs: true
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -698,6 +755,8 @@
   - '%APPDATA%\Discord\Local Storage'
   - '%APPDATA%\Discord\tmp'
   safety: medium
+  requires_closed:
+  - Discord.exe
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -714,7 +773,9 @@
   paths:
   - '%APPDATA%\Code\Code Cache'
   - '%APPDATA%\Code\GPUCache'
-  safety: medium
+  safety: high
+  requires_closed:
+  - Code.exe
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -729,6 +790,7 @@
   paths:
   - '%PROGRAMDATA%\Microsoft\Diagnosis\ETLLogs'
   safety: high
+  min_age_hours: 168
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -803,7 +865,7 @@
   cleanup_type: folder
   paths:
   - '%PROGRAMDATA%\Microsoft\Windows\AppRepository\Packages'
-  safety: medium
+  safety: critical
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -817,7 +879,9 @@
   cleanup_type: folder
   paths:
   - C:\Program Files (x86)\Steam\steamapps\downloading
-  safety: high
+  safety: medium
+  min_age_hours: 168
+  atomic_subdirs: true
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -833,7 +897,7 @@
   cleanup_type: folder
   paths:
   - '%PROGRAMDATA%\Microsoft\Windows Defender\Scans\History\Service\DetectionHistory'
-  safety: high
+  safety: medium
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -863,7 +927,7 @@
   cleanup_type: folder
   paths:
   - '%PROGRAMDATA%\Microsoft\Windows Defender\Quarantine'
-  safety: high
+  safety: critical
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -877,7 +941,9 @@
   cleanup_type: folder
   paths:
   - C:\Temp
-  safety: high
+  safety: medium
+  min_age_hours: 24
+  atomic_subdirs: true
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -904,25 +970,14 @@
       in Steam re-downloading these packages if a game needs them and they are not
       already installed on the system, or if the installed version is outdated/corrupted.
       It's a common target for disk cleanup to free up space.
-- category_id: user_downloads_folder
-  description_ru: Папка загрузок пользователя
-  cleanup_type: folder
-  paths:
-  - '%USERPROFILE%\Downloads'
-  safety: medium
-  provenance:
-    added_by: ai_suggestion_v3.8
-    verified_by: ai_peer_review
-    verification_confidence: 1.0
-    verification_comment: The description 'Папка загрузок пользователя' is a direct
-      and accurate translation of 'User downloads folder' in Russian. There is no
-      action or recommendation provided, only a description, which is correct.
 - category_id: microsoft_edge_session_storage
   description_ru: Кэш сессий Microsoft Edge
   cleanup_type: folder
   paths:
   - '%LOCALAPPDATA%\Microsoft\Edge\User Data\Default\Session Storage'
   safety: medium
+  requires_closed:
+  - msedge.exe
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -938,7 +993,7 @@
   cleanup_type: folder
   paths:
   - C:\Program Files (x86)\Steam\steamapps\workshop\temp
-  safety: high
+  safety: medium
   provenance:
     added_by: ai_suggestion_v3.8
     verified_by: ai_peer_review
@@ -946,3 +1001,521 @@
     verification_comment: The description 'Временные файлы Мастерской Steam' (Temporary
       files of Steam Workshop) is accurate. These are indeed temporary files related
       to Steam Workshop content and are generally safe to remove to free up disk space.
+- category_id: google_chrome_cache
+  description_ru: "Кеш браузера Google Chrome (все профили)"
+  cleanup_type: folder
+  paths:
+  - '%LOCALAPPDATA%\Google\Chrome\User Data\*\Cache'
+  - '%LOCALAPPDATA%\Google\Chrome\User Data\*\Code Cache'
+  - '%LOCALAPPDATA%\Google\Chrome\User Data\*\GPUCache'
+  - '%LOCALAPPDATA%\Google\Chrome\User Data\*\DawnCache'
+  - '%LOCALAPPDATA%\Google\Chrome\User Data\*\DawnGraphiteCache'
+  - '%LOCALAPPDATA%\Google\Chrome\User Data\*\DawnWebGPUCache'
+  - '%LOCALAPPDATA%\Google\Chrome\User Data\GrShaderCache'
+  - '%LOCALAPPDATA%\Google\Chrome\User Data\ShaderCache'
+  - '%LOCALAPPDATA%\Google\Chrome\User Data\GraphiteDawnCache'
+  - '%LOCALAPPDATA%\Google\Chrome\User Data\component_crx_cache'
+  safety: high
+  requires_closed:
+  - chrome.exe
+  provenance:
+    added_by: manual_review_2026-09
+    verified_by: content_inspection
+    verification_comment: "Дисковые кеши Chromium (Cache_Data, скомпилированный JS, GPU/шейдеры, кеш компонентов). Пересоздаются при следующем запуске; закладки, пароли, история лежат в других каталогах профиля и не затрагиваются."
+- category_id: yandex_browser_cache
+  description_ru: "Кеш Яндекс Браузера (все профили)"
+  cleanup_type: folder
+  safety: high
+  requires_closed:
+  - browser.exe
+  paths:
+  - "%LOCALAPPDATA%\\Yandex\\YandexBrowser\\User Data\\*\\Cache"
+  - "%LOCALAPPDATA%\\Yandex\\YandexBrowser\\User Data\\*\\Code Cache"
+  - "%LOCALAPPDATA%\\Yandex\\YandexBrowser\\User Data\\*\\GPUCache"
+  - "%LOCALAPPDATA%\\Yandex\\YandexBrowser\\User Data\\GrShaderCache"
+  - "%LOCALAPPDATA%\\Yandex\\YandexBrowser\\User Data\\component_crx_cache"
+  - "%LOCALAPPDATA%\\Yandex\\YandexBrowser\\User Data\\*\\DawnWebGPUCache"
+  - "%LOCALAPPDATA%\\Yandex\\YandexBrowser\\User Data\\*\\DawnGraphiteCache"
+  - "%LOCALAPPDATA%\\Yandex\\YandexBrowser\\User Data\\ShaderCache"
+  provenance:
+    added_by: manual_review_2026-09
+    verified_by: content_inspection
+    verification_comment: "Тот же Chromium, что и Chrome: только кеши, пользовательские данные профиля не затрагиваются."
+- category_id: mozilla_firefox_cache
+  description_ru: "Кеш браузера Mozilla Firefox"
+  cleanup_type: folder
+  paths:
+  - '%LOCALAPPDATA%\Mozilla\Firefox\Profiles\*\cache2'
+  - '%LOCALAPPDATA%\Mozilla\Firefox\Profiles\*\startupCache'
+  - '%LOCALAPPDATA%\Mozilla\Firefox\Profiles\*\jumpListCache'
+  - '%LOCALAPPDATA%\Mozilla\Firefox\Profiles\*\thumbnails'
+  - '%LOCALAPPDATA%\Mozilla\Firefox\Profiles\*\OfflineCache'
+  - '%LOCALAPPDATA%\Mozilla\Firefox\Profiles\*\shader-cache'
+  safety: high
+  requires_closed:
+  - firefox.exe
+  provenance:
+    added_by: manual_review_2026-09
+    verified_by: content_inspection
+    verification_comment: "Дисковый кеш Firefox живёт в Local AppData отдельно от профиля в Roaming (закладки, пароли, история). Всё перечисленное пересоздаётся."
+- category_id: webview2_runtime_caches
+  description_ru: "Кеши встроенного браузера WebView2 в приложениях"
+  cleanup_type: folder
+  paths:
+  - '%LOCALAPPDATA%\*\EBWebView\Default\Cache'
+  - '%LOCALAPPDATA%\*\EBWebView\Default\Code Cache'
+  - '%LOCALAPPDATA%\*\EBWebView\Default\GPUCache'
+  - '%LOCALAPPDATA%\*\EBWebView\component_crx_cache'
+  - '%LOCALAPPDATA%\*\EBWebView\GrShaderCache'
+  safety: high
+  skip_if_busy: true
+  busy_siblings:
+  - "GPUCache"
+  - "Cache\\Cache_Data"
+  - "Local Storage\\leveldb"
+  - "Network"
+  provenance:
+    added_by: manual_review_2026-09
+    verified_by: content_inspection
+    verification_comment: "Приложения на WebView2 держат кеш Chromium в EBWebView. Chromium штатно переживает удаление кеша на ходу: занятые файлы пропускаются, остальные пересоздаются."
+- category_id: cef_shared_cache
+  description_ru: "Общий кеш CEF (Chromium Embedded Framework)"
+  cleanup_type: folder
+  paths:
+  - '%LOCALAPPDATA%\CEF\User Data\Default\Cache'
+  - '%LOCALAPPDATA%\CEF\User Data\Default\Code Cache'
+  - '%LOCALAPPDATA%\CEF\User Data\Default\GPUCache'
+  - '%LOCALAPPDATA%\CEF\User Data\component_crx_cache'
+  - '%LOCALAPPDATA%\CEF\User Data\GrShaderCache'
+  safety: high
+  skip_if_busy: true
+  busy_siblings:
+  - "GPUCache"
+  - "Cache\\Cache_Data"
+  - "Local Storage\\leveldb"
+  - "Network"
+  provenance:
+    added_by: manual_review_2026-09
+    verified_by: content_inspection
+    verification_comment: "Кеш общего профиля CEF, которым пользуются лаунчеры и оверлеи. Только кеш, пересоздаётся."
+- category_id: nvidia_app_cef_cache
+  description_ru: "Кеш встроенного браузера NVIDIA App и оверлея"
+  cleanup_type: folder
+  safety: high
+  requires_closed:
+  - NVIDIA App.exe
+  - NVIDIA Overlay.exe
+  paths:
+  - "%LOCALAPPDATA%\\NVIDIA Corporation\\*\\CefCache\\Default\\Cache"
+  - "%LOCALAPPDATA%\\NVIDIA Corporation\\*\\CefCache\\Default\\Code Cache"
+  - "%LOCALAPPDATA%\\NVIDIA Corporation\\*\\CefCache\\Default\\GPUCache"
+  - "%LOCALAPPDATA%\\NVIDIA Corporation\\*\\CefCache\\Default\\DawnGraphiteCache"
+  - "%LOCALAPPDATA%\\NVIDIA Corporation\\*\\CefCache\\Default\\DawnWebGPUCache"
+  - "%LOCALAPPDATA%\\NVIDIA Corporation\\*\\CefCache\\GrShaderCache"
+  - "%LOCALAPPDATA%\\NVIDIA Corporation\\*\\CefCache\\GraphiteDawnCache"
+  - "%LOCALAPPDATA%\\NVIDIA Corporation\\*\\CefCache\\component_crx_cache"
+  provenance:
+    added_by: manual_review_2026-09
+    verified_by: content_inspection
+    verification_comment: "CEF-кеш интерфейса NVIDIA App; настройки драйвера хранятся в Drs, не здесь. Исправлено при проверке содержимого: CefCache — полный профиль CEF с Cookies и Local Storage (вход в аккаунт NVIDIA); очищаются только каталоги кеша внутри."
+- category_id: epic_eos_overlay_cache
+  description_ru: "Кеш браузера оверлея Epic Online Services"
+  cleanup_type: folder
+  safety: high
+  paths:
+  - "%LOCALAPPDATA%\\Epic Games\\EOSOverlay\\BrowserCache\\*\\Default\\Cache"
+  - "%LOCALAPPDATA%\\Epic Games\\EOSOverlay\\BrowserCache\\*\\Default\\Code Cache"
+  - "%LOCALAPPDATA%\\Epic Games\\EOSOverlay\\BrowserCache\\*\\Default\\GPUCache"
+  - "%LOCALAPPDATA%\\Epic Games\\EOSOverlay\\BrowserCache\\*\\GrShaderCache"
+  - "%LOCALAPPDATA%\\Epic Games\\EOSOverlay\\BrowserCache\\*\\component_crx_cache"
+  skip_if_busy: true
+  busy_siblings:
+  - "GPUCache"
+  - "Cache\\Cache_Data"
+  - "Local Storage\\leveldb"
+  - "Network"
+  provenance:
+    added_by: manual_review_2026-09
+    verified_by: content_inspection
+    verification_comment: "Chromium-кеш оверлея EOS; пересоздаётся при следующем запуске игры с оверлеем. Исправлено при проверке содержимого: BrowserCache\\0 — полный профиль Chromium (Cookies, Favicons, базы); очищаются только кеши."
+- category_id: unreal_engine_game_logs
+  description_ru: "Журналы и отчёты о сбоях игр на Unreal Engine"
+  cleanup_type: folder
+  paths:
+  - '%LOCALAPPDATA%\*\Saved\Logs'
+  - '%LOCALAPPDATA%\*\Saved\Crashes'
+  safety: high
+  min_age_hours: 168
+  provenance:
+    added_by: manual_review_2026-09
+    verified_by: content_inspection
+    verification_comment: "Стандартная раскладка Unreal: Saved\\Logs — только .log, Saved\\Crashes — дампы. Сохранения (Saved\\SaveGames) и настройки (Saved\\Config) не затрагиваются: шаблон указывает только на эти два каталога. Последняя неделя остаётся."
+- category_id: godot_game_logs
+  description_ru: "Журналы игр на Godot"
+  cleanup_type: folder
+  paths:
+  - '%APPDATA%\Godot\app_userdata\*\logs'
+  safety: high
+  min_age_hours: 168
+  provenance:
+    added_by: manual_review_2026-09
+    verified_by: content_inspection
+    verification_comment: "app_userdata\\<игра>\\logs содержит только журналы; сохранения лежат рядом и не затрагиваются."
+- category_id: godot_shader_cache
+  description_ru: "Кеш шейдеров игр на Godot"
+  cleanup_type: folder
+  paths:
+  - '%APPDATA%\Godot\app_userdata\*\shader_cache'
+  safety: high
+  min_age_hours: 720
+  provenance:
+    added_by: manual_review_2026-09
+    verified_by: content_inspection
+    verification_comment: "Пересобирается движком при запуске игры."
+- category_id: application_logs_generic
+  description_ru: "Журналы программ в AppData (каталоги logs)"
+  cleanup_type: folder
+  paths:
+  - '%APPDATA%\*\logs'
+  - '%LOCALAPPDATA%\*\logs'
+  min_age_hours: 168
+  safety: medium
+  provenance:
+    added_by: manual_review_2026-09
+    verified_by: content_inspection
+    verification_comment: "Каталог с именем logs на верхнем уровне данных программы по соглашению содержит только журналы. Текущий журнал занят процессом и пропускается, файлы последней недели остаются для диагностики. Понижено до medium при ручной проверке: каталог logs у IRC- и мессенджер-клиентов (HexChat, mIRC, Pidgin) хранит историю переписки, а не диагностику."
+- category_id: windows_uso_logs
+  description_ru: "Журналы оркестратора обновлений Windows (USO)"
+  cleanup_type: folder
+  paths:
+  - '%PROGRAMDATA%\USOShared\Logs'
+  safety: high
+  min_age_hours: 168
+  provenance:
+    added_by: manual_review_2026-09
+    verified_by: content_inspection
+    verification_comment: "ETL-трассы Update Session Orchestrator; Windows создаёт новые при каждой проверке обновлений."
+- category_id: ea_desktop_logs
+  description_ru: "Журналы EA app"
+  cleanup_type: folder
+  paths:
+  - '%LOCALAPPDATA%\Electronic Arts\EA Desktop\Logs'
+  - '%PROGRAMDATA%\EA Desktop\Logs'
+  safety: high
+  min_age_hours: 168
+  provenance:
+    added_by: manual_review_2026-09
+    verified_by: content_inspection
+    verification_comment: "Только журналы клиента EA; данные игр и учётной записи в других каталогах."
+- category_id: telegram_desktop_cache
+  description_ru: "Кеш медиафайлов Telegram Desktop"
+  cleanup_type: folder
+  safety: high
+  requires_closed:
+  - Telegram.exe
+  paths:
+  - "%APPDATA%\\Telegram Desktop\\tdata\\user_data\\cache"
+  - "%APPDATA%\\Telegram Desktop\\tdata\\user_data\\media_cache"
+  - "%APPDATA%\\Telegram Desktop\\tdata\\user_data\\wvbots\\EBWebView\\Default\\Cache"
+  - "%APPDATA%\\Telegram Desktop\\tdata\\user_data\\wvbots\\EBWebView\\Default\\Code Cache"
+  - "%APPDATA%\\Telegram Desktop\\tdata\\user_data\\wvbots\\EBWebView\\Default\\GPUCache"
+  - "%APPDATA%\\Telegram Desktop\\tdata\\user_data\\wvbots\\EBWebView\\GrShaderCache"
+  provenance:
+    added_by: manual_review_2026-09
+    verified_by: content_inspection
+    verification_comment: "Те же каталоги очищает кнопка «Очистить кеш» в настройках Telegram; сообщения и сессия хранятся на сервере и в других файлах tdata."
+- category_id: claude_desktop_cache
+  description_ru: "Кеш приложения Claude"
+  cleanup_type: folder
+  paths:
+  - '%APPDATA%\Claude\Cache'
+  - '%APPDATA%\Claude\Code Cache'
+  - '%APPDATA%\Claude\GPUCache'
+  safety: high
+  requires_closed:
+  - claude.exe
+  provenance:
+    added_by: manual_review_2026-09
+    verified_by: content_inspection
+    verification_comment: "Electron-приложение: стандартные кеши Chromium, пересоздаются."
+- category_id: figma_desktop_cache
+  description_ru: "Кеш приложения Figma"
+  cleanup_type: folder
+  paths:
+  - '%APPDATA%\Figma\DesktopProfile\*\Cache'
+  - '%APPDATA%\Figma\DesktopProfile\*\Code Cache'
+  - '%APPDATA%\Figma\DesktopProfile\*\GPUCache'
+  safety: high
+  requires_closed:
+  - Figma.exe
+  provenance:
+    added_by: manual_review_2026-09
+    verified_by: content_inspection
+    verification_comment: "Electron-приложение: кеши Chromium в версионированном профиле (DesktopProfile\\v42)."
+- category_id: yandex_music_cache
+  description_ru: "Кеш приложения Яндекс Музыка"
+  cleanup_type: folder
+  paths:
+  - '%APPDATA%\YandexMusic\Cache'
+  - '%APPDATA%\YandexMusic\Code Cache'
+  - '%APPDATA%\YandexMusic\GPUCache'
+  safety: high
+  requires_closed:
+  - Yandex Music.exe
+  provenance:
+    added_by: manual_review_2026-09
+    verified_by: content_inspection
+    verification_comment: "Electron-приложение: кеши Chromium; загруженные треки хранятся отдельно."
+- category_id: teamspeak_cache
+  description_ru: "Кеш клиента TeamSpeak"
+  cleanup_type: folder
+  safety: high
+  requires_closed:
+  - TeamSpeak.exe
+  - ts3client_win64.exe
+  paths:
+  - "%LOCALAPPDATA%\\TeamSpeak\\Cache\\Default\\Default\\Cache"
+  - "%LOCALAPPDATA%\\TeamSpeak\\Cache\\Default\\Default\\Code Cache"
+  - "%LOCALAPPDATA%\\TeamSpeak\\Cache\\Default\\Default\\GPUCache"
+  - "%LOCALAPPDATA%\\TeamSpeak\\Cache\\Default\\GrShaderCache"
+  - "%LOCALAPPDATA%\\TeamSpeak\\Cache\\Default\\component_crx_cache"
+  provenance:
+    added_by: manual_review_2026-09
+    verified_by: content_inspection
+    verification_comment: "Chromium-кеш интерфейса TeamSpeak 5; закладки серверов и настройки не здесь. Исправлено при проверке содержимого: TeamSpeak\\Cache — полный профиль Chromium с сессией myTeamSpeak; очищаются только кеши."
+- category_id: logitech_ghub_download_cache
+  description_ru: "Кеш загрузок Logitech G HUB"
+  cleanup_type: folder
+  paths:
+  - '%PROGRAMDATA%\LGHUB\cache'
+  requires_closed:
+  - lghub.exe
+  - lghub_agent.exe
+  - lghub_updater.exe
+  safety: medium
+  provenance:
+    added_by: manual_review_2026-09
+    verified_by: content_inspection
+    verification_comment: "Скачанные пакеты обновлений G HUB; профили устройств лежат в LGHUB\\settings.db и depots и не затрагиваются. Понижено до medium: назначение файлов (хеш-имена рядом с builds и depots) по содержимому не подтверждено."
+- category_id: movavi_video_editor_cache
+  description_ru: "Кеш превью Movavi Video Editor"
+  cleanup_type: folder
+  paths:
+  - '%LOCALAPPDATA%\Movavi\Video Editor\cache'
+  safety: medium
+  provenance:
+    added_by: manual_review_2026-09
+    verified_by: content_inspection
+    verification_comment: "Кеш превью и аудиоволн; пересчитывается при открытии проекта, что для больших проектов занимает время."
+- category_id: cities_skylines2_mod_cache
+  description_ru: "Кеш модов Cities: Skylines II"
+  cleanup_type: folder
+  paths:
+  - '%USERPROFILE%\AppData\LocalLow\Colossal Order\Cities Skylines II\.cache'
+  safety: medium
+  requires_closed:
+  - Cities2.exe
+  provenance:
+    added_by: manual_review_2026-09
+    verified_by: content_inspection
+    verification_comment: "Локальная копия модов и ассетов Paradox Mods: скачивается заново при запуске игры — десятки гигабайт трафика."
+- category_id: uv_package_cache
+  description_ru: "Кеш пакетов Python (uv)"
+  cleanup_type: folder
+  paths:
+  - '%LOCALAPPDATA%\uv\cache'
+  safety: medium
+  provenance:
+    added_by: manual_review_2026-09
+    verified_by: content_inspection
+    verification_comment: "Кеш загрузок и сборок uv; восстанавливается повторной загрузкой пакетов. Для разработчика это рабочий инструмент."
+- category_id: nuitka_cache
+  description_ru: "Кеш компилятора Nuitka"
+  cleanup_type: folder
+  paths:
+  - '%LOCALAPPDATA%\Nuitka\Nuitka\Cache'
+  safety: medium
+  provenance:
+    added_by: manual_review_2026-09
+    verified_by: content_inspection
+    verification_comment: "ccache и скачанные инструменты Nuitka; пересобирается при следующей компиляции."
+- category_id: nuget_http_cache
+  description_ru: "HTTP-кеш NuGet"
+  cleanup_type: folder
+  paths:
+  - '%LOCALAPPDATA%\NuGet\v3-cache'
+  safety: medium
+  provenance:
+    added_by: manual_review_2026-09
+    verified_by: content_inspection
+    verification_comment: "То же, что dotnet nuget locals http-cache --clear; установленные пакеты (packages) не затрагиваются."
+- category_id: npm_cache
+  description_ru: "Кеш пакетов npm"
+  cleanup_type: folder
+  paths:
+  - '%LOCALAPPDATA%\npm-cache'
+  safety: medium
+  provenance:
+    added_by: manual_review_2026-09
+    verified_by: content_inspection
+    verification_comment: "То же, что npm cache clean --force; проекты и node_modules не затрагиваются."
+- category_id: android_studio_caches
+  description_ru: "Кеши Android Studio"
+  cleanup_type: folder
+  paths:
+  - '%LOCALAPPDATA%\Google\AndroidStudio*\caches'
+  safety: medium
+  requires_closed:
+  - studio64.exe
+  provenance:
+    added_by: manual_review_2026-09
+    verified_by: content_inspection
+    verification_comment: "Индексы IDE; пересоздаются при следующем открытии проекта (переиндексация занимает время)."
+- category_id: steam_depot_manifests
+  description_ru: "Манифесты загрузок Steam (depotcache)"
+  cleanup_type: folder
+  paths:
+  - "C:\\Program Files (x86)\\Steam\\depotcache"
+  safety: medium
+  requires_closed:
+  - "steam.exe"
+  provenance:
+    added_by: manual_review_2026-09
+    verified_by: content_inspection
+    verification_comment: "Steam перекачивает манифесты по мере надобности, но их используют и для отката игр на старые версии — автоматически не удаляется."
+- category_id: driver_installer_extraction
+  description_ru: "Распакованные установщики драйверов AMD и NVIDIA"
+  cleanup_type: folder
+  paths:
+  - "C:\\AMD"
+  - "C:\\NVIDIA"
+  safety: high
+  min_age_hours: 720
+  atomic_subdirs: true
+  provenance:
+    added_by: machine_survey_2026-09
+    verified_by: content_inspection
+    verification_comment: "C:\\AMD и C:\\NVIDIA — каталоги, куда установщики драйверов распаковывают себя перед установкой; драйвер после установки их не использует. Подкаталог, в который писали за месяц, не трогается целиком — установка могла ещё идти."
+- category_id: unity_player_logs
+  description_ru: "Журналы игр на Unity (Player.log)"
+  cleanup_type: files
+  paths:
+  - "%USERPROFILE%\\AppData\\LocalLow\\**\\Player.log"
+  - "%USERPROFILE%\\AppData\\LocalLow\\**\\Player-prev.log"
+  safety: high
+  age_days: 7
+  provenance:
+    added_by: machine_survey_2026-09
+    verified_by: content_inspection
+    verification_comment: "Unity перезаписывает Player.log при каждом запуске игры, а прошлый сохраняет как Player-prev.log. Сохранения игр лежат в других файлах рядом и маской не затрагиваются."
+- category_id: obs_browser_source_cache
+  description_ru: "Кеш браузерных источников OBS Studio"
+  cleanup_type: folder
+  paths:
+  - "%APPDATA%\\obs-studio\\plugin_config\\obs-browser\\obs_profile_cookies\\*\\Cache"
+  - "%APPDATA%\\obs-studio\\plugin_config\\obs-browser\\obs_profile_cookies\\*\\Code Cache"
+  - "%APPDATA%\\obs-studio\\plugin_config\\obs-browser\\obs_profile_cookies\\*\\GPUCache"
+  safety: high
+  requires_closed:
+  - "obs64.exe"
+  provenance:
+    added_by: machine_survey_2026-09
+    verified_by: content_inspection
+    verification_comment: "Кеш CEF браузерных источников и доков. Профиль с cookies (входы в Twitch и др.) не затрагивается — только каталоги кеша внутри него."
+- category_id: steamvr_html_cache
+  description_ru: "Кеш интерфейса SteamVR"
+  cleanup_type: folder
+  paths:
+  - "%LOCALAPPDATA%\\SteamVR\\htmlcache"
+  safety: high
+  requires_closed:
+  - "vrmonitor.exe"
+  - "vrserver.exe"
+  - "steam.exe"
+  provenance:
+    added_by: machine_survey_2026-09
+    verified_by: content_inspection
+    verification_comment: "Как и Steam\\htmlcache — кеш встроенного браузера; Valve очищает его кнопкой «Удалить кеш веб-браузера»."
+- category_id: dart_pub_cache
+  description_ru: "Кеш пакетов Dart и Flutter (pub)"
+  cleanup_type: folder
+  paths:
+  - "%LOCALAPPDATA%\\Pub\\Cache"
+  safety: medium
+  provenance:
+    added_by: machine_survey_2026-09
+    verified_by: content_inspection
+    verification_comment: "То же, что `dart pub cache clean`: пакеты скачиваются заново при следующей сборке проекта."
+- category_id: chromium_app_caches
+  description_ru: "Кеши приложений на Electron и Chromium"
+  cleanup_type: folder
+  paths:
+  - "%APPDATA%\\*\\Code Cache"
+  - "%APPDATA%\\*\\GPUCache"
+  - "%APPDATA%\\*\\Cache\\Cache_Data"
+  - "%APPDATA%\\*\\GrShaderCache"
+  - "%APPDATA%\\*\\DawnCache"
+  - "%APPDATA%\\*\\DawnGraphiteCache"
+  - "%APPDATA%\\*\\DawnWebGPUCache"
+  - "%APPDATA%\\*\\GraphiteDawnCache"
+  - "%APPDATA%\\*\\component_crx_cache"
+  - "%APPDATA%\\*\\*\\Code Cache"
+  - "%APPDATA%\\*\\*\\GPUCache"
+  - "%APPDATA%\\*\\*\\Cache\\Cache_Data"
+  - "%APPDATA%\\*\\*\\GrShaderCache"
+  - "%APPDATA%\\*\\*\\DawnCache"
+  - "%APPDATA%\\*\\*\\DawnGraphiteCache"
+  - "%APPDATA%\\*\\*\\DawnWebGPUCache"
+  - "%APPDATA%\\*\\*\\GraphiteDawnCache"
+  - "%APPDATA%\\*\\*\\component_crx_cache"
+  - "%APPDATA%\\*\\*\\*\\Code Cache"
+  - "%APPDATA%\\*\\*\\*\\GPUCache"
+  - "%APPDATA%\\*\\*\\*\\Cache\\Cache_Data"
+  - "%APPDATA%\\*\\*\\*\\GrShaderCache"
+  - "%APPDATA%\\*\\*\\*\\DawnCache"
+  - "%APPDATA%\\*\\*\\*\\DawnGraphiteCache"
+  - "%APPDATA%\\*\\*\\*\\DawnWebGPUCache"
+  - "%APPDATA%\\*\\*\\*\\GraphiteDawnCache"
+  - "%APPDATA%\\*\\*\\*\\component_crx_cache"
+  - "%LOCALAPPDATA%\\*\\Code Cache"
+  - "%LOCALAPPDATA%\\*\\GPUCache"
+  - "%LOCALAPPDATA%\\*\\Cache\\Cache_Data"
+  - "%LOCALAPPDATA%\\*\\GrShaderCache"
+  - "%LOCALAPPDATA%\\*\\DawnCache"
+  - "%LOCALAPPDATA%\\*\\DawnGraphiteCache"
+  - "%LOCALAPPDATA%\\*\\DawnWebGPUCache"
+  - "%LOCALAPPDATA%\\*\\GraphiteDawnCache"
+  - "%LOCALAPPDATA%\\*\\component_crx_cache"
+  - "%LOCALAPPDATA%\\*\\*\\Code Cache"
+  - "%LOCALAPPDATA%\\*\\*\\GPUCache"
+  - "%LOCALAPPDATA%\\*\\*\\Cache\\Cache_Data"
+  - "%LOCALAPPDATA%\\*\\*\\GrShaderCache"
+  - "%LOCALAPPDATA%\\*\\*\\DawnCache"
+  - "%LOCALAPPDATA%\\*\\*\\DawnGraphiteCache"
+  - "%LOCALAPPDATA%\\*\\*\\DawnWebGPUCache"
+  - "%LOCALAPPDATA%\\*\\*\\GraphiteDawnCache"
+  - "%LOCALAPPDATA%\\*\\*\\component_crx_cache"
+  - "%LOCALAPPDATA%\\*\\*\\*\\Code Cache"
+  - "%LOCALAPPDATA%\\*\\*\\*\\GPUCache"
+  - "%LOCALAPPDATA%\\*\\*\\*\\Cache\\Cache_Data"
+  - "%LOCALAPPDATA%\\*\\*\\*\\GrShaderCache"
+  - "%LOCALAPPDATA%\\*\\*\\*\\DawnCache"
+  - "%LOCALAPPDATA%\\*\\*\\*\\DawnGraphiteCache"
+  - "%LOCALAPPDATA%\\*\\*\\*\\DawnWebGPUCache"
+  - "%LOCALAPPDATA%\\*\\*\\*\\GraphiteDawnCache"
+  - "%LOCALAPPDATA%\\*\\*\\*\\component_crx_cache"
+  safety: high
+  skip_if_busy: true
+  busy_siblings:
+  - "GPUCache"
+  - "Cache\\Cache_Data"
+  - "Local Storage\\leveldb"
+  - "Network"
+  exclude_under:
+  - "%LOCALAPPDATA%\\\\Packages"
+  - "%LOCALAPPDATA%\\\\Temp"
+  - "%LOCALAPPDATA%\\\\Microsoft"
+  provenance:
+    added_by: manual_review_2026-09
+    verified_by: content_inspection
+    verification_comment: "Имена Code Cache, GPUCache, Cache\\Cache_Data, GrShaderCache, Dawn*Cache и component_crx_cache встречаются только в раскладке Chromium и содержат пересоздаваемый кеш. Правило стоит последним: пути, найденные специализированными правилами, остаются за ними. Кеш запущенной программы (занят любой файл кеша или GPUCache/Local Storage/Network рядом) не трогается."

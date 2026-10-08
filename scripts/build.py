@@ -7,10 +7,12 @@
 2. Запускает PyInstaller с сгенерированным .spec файлом.
 3. Создает единый исполняемый файл (onefile).
 4. По запросу создает ZIP-архив с исполняемым файлом.
-5. Поддерживает флаги для отладочной и релизной сборок.
+5. Записывает SHA-256 каждого файла дистрибутива в `<файл>.sha256`.
+6. Поддерживает флаги для отладочной и релизной сборок.
 """
 
 import argparse
+import hashlib
 import logging
 import os
 import re
@@ -72,8 +74,8 @@ SPEC_CONFIG = {
     "datas": [
         ("src/winspector/data/knowledge_base", "winspector/data/knowledge_base"),
         ("src/winspector/resources/styles", "winspector/resources/styles"),
+        ("src/winspector/resources/icons", "winspector/resources/icons"),
         ("assets/app.ico", "assets"),
-        ("assets/rocket.png", "assets"),
     ],
     "hiddenimports": [
         # google-genai работает поверх httpx и pydantic, gRPC ему не нужен —
@@ -87,6 +89,7 @@ SPEC_CONFIG = {
         "PyQt6.sip",
         "PyQt6.Qt6",
         "PyQt6.QtGui",
+        "PyQt6.QtSvg",
         "PyQt6.QtWidgets",
         "PyQt6.QtCore",
     ],
@@ -217,6 +220,27 @@ def generate_spec_from_template(is_debug: bool, version_file_path: Path) -> Path
     return spec_path
 
 
+def write_checksums() -> None:
+    """
+    Пишет SHA-256 каждого файла дистрибутива в `<файл>.sha256`.
+
+    Формат `sha256sum`: хеш, два пробела, имя файла. Хеш дублируется в журнал —
+    его вставляют в описание релиза, чтобы скачавший мог сверить файл.
+    """
+    for artifact in sorted(DIST_PATH.glob(f"{APP_NAME}*")):
+        if artifact.suffix not in (".exe", ".zip"):
+            continue
+        digest = hashlib.sha256()
+        with artifact.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        checksum = digest.hexdigest()
+        artifact.with_name(artifact.name + ".sha256").write_text(
+            f"{checksum}  {artifact.name}\n", encoding="utf-8"
+        )
+        logging.info(f"SHA-256 {artifact.name}: {checksum.upper()}")
+
+
 def create_distribution_archive():
     """Создает ZIP-архив с собранным onefile-приложением."""
     executable_path = DIST_PATH / f"{APP_NAME}.exe"
@@ -275,6 +299,7 @@ def main():
     # 5. Пост-сборочные шаги
     if args.archive:
         create_distribution_archive()
+    write_checksums()
 
     # 6. Финальная очистка
     if not args.no_clean:

@@ -19,7 +19,9 @@ IS_DEBUG = {debug}
 IS_CONSOLE = {console}
 
 # --- Конфигурация сборки ---
-block_cipher = None
+# Шифрование байт-кода (`cipher`/`block_cipher`) и параметры
+# `win_no_prefer_redirects`/`win_private_assemblies` убраны: в PyInstaller 6
+# они не делают ничего и оставлены в API только ради старых spec-файлов.
 
 # 1. Сборка данных: файлы и директории, которые нужно включить
 # =============================================================================
@@ -37,8 +39,13 @@ a_datas += collect_data_files('certifi')
 # 2. Скрытые импорты: модули, которые PyInstaller может не найти
 # =============================================================================
 a_hiddenimports = {hiddenimports}
-# Явно собираем все подмодули win32com, это надежнее, чем просто hook
-a_hiddenimports += collect_submodules('win32com')
+# Явно собираем подмодули win32com, это надежнее, чем просто hook. Тесты и
+# демо pywin32 программе не нужны: они только раздувают EXE и дают
+# антивирусам лишний материал для эвристик.
+a_hiddenimports += collect_submodules(
+    'win32com',
+    filter=lambda name: not any(part in name.split('.') for part in ('test', 'demos')),
+)
 
 
 # 3. Исключения: модули, которые не нужно включать в сборку
@@ -59,15 +66,12 @@ a = Analysis(
     hookspath=[], # Хуки для pywin32 теперь не нужны, так как мы собираем подмодули
     runtime_hooks=[],
     excludes=a_excludes,
-    win_no_prefer_redirects=False,
-    win_private_assemblies=False,
-    cipher=block_cipher,
     noarchive=False,
 )
 
 # 5. Сборка PYZ (архив с Python-модулями)
 # =============================================================================
-pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+pyz = PYZ(a.pure)
 
 # 6. Сборка EXE (исполняемый файл)
 # =============================================================================
@@ -81,7 +85,8 @@ exe = EXE(
     debug=IS_DEBUG,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    # UPX-сжатие — частая причина ложных срабатываний антивирусов.
+    upx=False,
     upx_exclude=[],
     # В onefile-режиме PyInstaller распакует содержимое в системный
     # временный каталог (%TEMP%\_MEIxxxxxx) и удалит его после завершения.

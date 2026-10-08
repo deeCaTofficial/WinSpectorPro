@@ -1,7 +1,8 @@
 # tests/test_windows_optimizer.py
 """
 Тесты применения плана. Ни один тест не выполняет настоящих команд —
-подменяется `_run_process`, поэтому система остаётся нетронутой.
+подменяются `_run_process` и `apply_service_action`, поэтому система остаётся
+нетронутой.
 """
 
 from __future__ import annotations
@@ -12,7 +13,9 @@ from typing import Any
 import pytest
 
 from winspector.core.exceptions import RestorePointError
-from winspector.core.modules.windows_optimizer import WindowsOptimizer
+from winspector.core.modules import windows_optimizer as optimizer_module
+from winspector.core.modules.service_control import ServiceControlError
+from winspector.core.modules.windows_optimizer import ServiceOperation, WindowsOptimizer
 
 
 def completed(returncode: int = 0, stdout: str = "", stderr: str = "") -> Any:
@@ -40,28 +43,22 @@ def optimizer() -> WindowsOptimizer:
 
 
 class TestCommandGeneration:
-    def test_disable_service_builds_argument_list(self, optimizer):
+    @pytest.mark.parametrize("action", ["disable", "set_manual", "stop"])
+    def test_service_actions_become_api_operations(self, optimizer, action):
+        """
+        Служба не превращается в командную строку: имя уходит в API SCM
+        аргументом, поэтому и подставлять его некуда.
+        """
         command = optimizer._generate_command_for_action(
-            {"type": "service", "id": "MapsBroker", "action": "disable"}
+            {"type": "service", "id": "MapsBroker", "action": action}
         )
-        assert command[0] == "powershell.exe"
-        assert "-Command" in command
-        # Аргументы передаются списком: интерпретатор командной строки
-        # не участвует, склейки строк нет.
-        assert isinstance(command, list)
-        assert "Set-Service -Name 'MapsBroker' -StartupType Disabled" in command[-1]
+        assert command == ServiceOperation("MapsBroker", action)
 
-    def test_set_manual_is_supported(self, optimizer):
+    def test_unknown_service_action_is_skipped(self, optimizer):
         command = optimizer._generate_command_for_action(
-            {"type": "service", "id": "MapsBroker", "action": "set_manual"}
+            {"type": "service", "id": "MapsBroker", "action": "restart"}
         )
-        assert "StartupType Manual" in command[-1]
-
-    def test_stop_is_supported(self, optimizer):
-        command = optimizer._generate_command_for_action(
-            {"type": "service", "id": "MapsBroker", "action": "stop"}
-        )
-        assert "Stop-Service" in command[-1]
+        assert command is None
 
     def test_uwp_uses_package_full_name_when_present(self, optimizer):
         command = optimizer._generate_command_for_action(
@@ -151,14 +148,12 @@ class TestExecuteActionPlan:
             {"type": "service", "id": "DiagTrack", "action": "disable"},  # ошибка
         ]
 
-        async def fake_run(command, timeout):
-            script = command[-1]
-            if "DiagTrack" in script:
-                return completed(returncode=1, stderr="Отказано в доступе")
-            return completed(returncode=0)
+        def fake_apply(name, action):
+            if name == "DiagTrack":
+                raise ServiceControlError("Отказано в доступе")
 
         monkeypatch.setattr(optimizer, "_cache_existing_services", _noop)
-        monkeypatch.setattr(optimizer, "_run_process", fake_run)
+        monkeypatch.setattr(optimizer_module, "apply_service_action", fake_apply)
 
         summary = await optimizer.execute_action_plan(plan)
 
@@ -174,20 +169,57 @@ class TestExecuteActionPlan:
         monkeypatch.setattr(optimizer, "_run_process", fake_run)
 
         summary = await optimizer.execute_action_plan(
-            [{"type": "service", "id": "MapsBroker", "action": "disable"}]
+            [{"type": "uwp_app", "id": "Vendor.App", "action": "remove"}]
         )
 
         assert len(summary["failed"]) == 1
         assert "Таймаут" in summary["failed"][0]["error"]
 
-    async def test_progress_callback_stays_in_range(self, optimizer, monkeypatch):
-        seen: list[int] = []
+    async def test_service_failure_message_reaches_report(self, optimizer, monkeypatch):
+        def fake_apply(name, action):
+            raise ServiceControlError("Служба 'MapsBroker' не остановилась за отведённое время.")
+
+        monkeypatch.setattr(optimizer, "_cache_existing_services", _noop)
+        monkeypatch.setattr(optimizer_module, "apply_service_action", fake_apply)
+
+        summary = await optimizer.execute_action_plan(
+            [{"type": "service", "id": "MapsBroker", "action": "stop"}]
+        )
+
+        assert summary["completed"] == []
+        assert "не остановилась" in summary["failed"][0]["error"]
+
+    async def test_services_and_uwp_execute_through_their_own_paths(self, optimizer, monkeypatch):
+        applied: list[tuple[str, str]] = []
+        commands: list[list[str]] = []
+
+        def fake_apply(name, action):
+            applied.append((name, action))
 
         async def fake_run(command, timeout):
+            commands.append(command)
             return completed()
 
         monkeypatch.setattr(optimizer, "_cache_existing_services", _noop)
+        monkeypatch.setattr(optimizer_module, "apply_service_action", fake_apply)
         monkeypatch.setattr(optimizer, "_run_process", fake_run)
+
+        summary = await optimizer.execute_action_plan(
+            [
+                {"type": "service", "id": "MapsBroker", "action": "set_manual"},
+                {"type": "uwp_app", "id": "Vendor.App", "action": "remove"},
+            ]
+        )
+
+        assert applied == [("MapsBroker", "set_manual")]
+        assert len(commands) == 1 and commands[0][0] == "powershell.exe"
+        assert [i["id"] for i in summary["completed"]] == ["MapsBroker", "Vendor.App"]
+
+    async def test_progress_callback_stays_in_range(self, optimizer, monkeypatch):
+        seen: list[int] = []
+
+        monkeypatch.setattr(optimizer, "_cache_existing_services", _noop)
+        monkeypatch.setattr(optimizer_module, "apply_service_action", lambda name, action: None)
 
         await optimizer.execute_action_plan(
             [
@@ -249,35 +281,128 @@ class TestCollectComponents:
         monkeypatch.setattr(optimizer, "_run_process", fake_run)
         assert await optimizer._collect_uwp_apps() == []
 
-    async def test_worker_failure_does_not_break_collection(self, optimizer, monkeypatch):
-        """Падение WMI-воркера не должно ронять весь сбор данных."""
+    async def test_service_collector_failure_does_not_break_collection(
+        self, optimizer, monkeypatch
+    ):
+        """Сбой опроса SCM не должен ронять весь сбор данных."""
 
-        class ExplodingPool:
-            async def run(self, func, *args):
-                raise RuntimeError("WMI недоступен")
+        async def exploding_services():
+            raise RuntimeError("SCM недоступен")
 
         async def fake_run(command, timeout):
             return completed(stdout="[]")
 
-        optimizer._worker_pool = ExplodingPool()
+        monkeypatch.setattr(optimizer, "_collect_services", exploding_services)
         monkeypatch.setattr(optimizer, "_run_process", fake_run)
 
         result = await optimizer.get_system_components()
 
         assert result == {"services": [], "uwp_apps": []}
 
-    async def test_worker_error_dict_is_handled(self, optimizer, monkeypatch):
-        class ErrorPool:
-            async def run(self, func, *args):
-                return {"error": "WMI connection failed."}
+    async def test_services_and_apps_are_collected_together(self, optimizer, monkeypatch):
+        async def fake_services():
+            return [{"name": "Third", "display_name": "Сторонняя"}]
 
         async def fake_run(command, timeout):
-            return completed(stdout="[]")
+            return completed(stdout='[{"Name":"Solo.App","PackageFullName":"Solo.App_1"}]')
 
-        optimizer._worker_pool = ErrorPool()
+        monkeypatch.setattr(optimizer, "_collect_services", fake_services)
         monkeypatch.setattr(optimizer, "_run_process", fake_run)
 
-        assert (await optimizer.get_system_components())["services"] == []
+        result = await optimizer.get_system_components()
+
+        assert [s["name"] for s in result["services"]] == ["Third"]
+        assert [a["id"] for a in result["uwp_apps"]] == ["Solo.App"]
+
+
+# --- Сбор служб через SCM ---------------------------------------------------
+
+
+class FakeWinService:
+    """Дублёр `psutil.WindowsService` с управляемым `as_dict()`."""
+
+    def __init__(self, info: dict[str, Any] | None, error: Exception | None = None) -> None:
+        self._info = info or {}
+        self._error = error
+
+    def as_dict(self) -> dict[str, Any]:
+        if self._error:
+            raise self._error
+        return dict(self._info)
+
+    def name(self) -> str:
+        return self._info["name"]
+
+
+def fake_service(
+    name: str, path: str, start_type: str = "automatic", status: str = "running"
+) -> FakeWinService:
+    return FakeWinService(
+        {
+            "name": name,
+            "display_name": f"{name} display",
+            "binpath": path,
+            "start_type": start_type,
+            "status": status,
+        }
+    )
+
+
+class TestCollectServices:
+    """`collect_services` фильтрует то же, что раньше фильтровал WMI-воркер."""
+
+    def test_system_services_are_filtered_out(self, monkeypatch):
+        """
+        Службы из System32, хосты svchost и отключённые службы не предлагаются
+        к изменению — это снижает риск и уменьшает объём данных для модели.
+        """
+        rows = [
+            fake_service("Third", r"C:\Apps\third.exe"),
+            fake_service("Sys", r"C:\Windows\System32\svc.exe"),
+            fake_service("Host", r"C:\Windows\svchost.exe -k net"),
+            fake_service("Off", r"C:\Apps\off.exe", start_type="disabled"),
+        ]
+        monkeypatch.setattr(optimizer_module.psutil, "win_service_iter", lambda: iter(rows))
+
+        assert [s["name"] for s in optimizer_module.collect_services()] == ["Third"]
+
+    def test_entries_keep_wmi_vocabulary(self, monkeypatch):
+        """
+        Форма и словарь записей совпадают с прежним WMI-воркером: база знаний
+        и промпты ИИ опираются на `Auto`/`Manual` и `Running`/`Stopped`.
+        """
+        rows = [fake_service("App", r"C:\Apps\a.exe", "manual", "stop_pending")]
+        monkeypatch.setattr(optimizer_module.psutil, "win_service_iter", lambda: iter(rows))
+
+        (entry,) = optimizer_module.collect_services()
+
+        assert set(entry) == {"name", "display_name", "state", "start_mode", "path"}
+        assert entry["start_mode"] == "Manual"
+        assert entry["state"] == "Stop Pending"
+
+    def test_inaccessible_service_is_skipped_not_raised(self, monkeypatch):
+        rows = [
+            FakeWinService(None, error=PermissionError("нет доступа")),
+            fake_service("Ok", r"C:\Apps\ok.exe"),
+        ]
+        monkeypatch.setattr(optimizer_module.psutil, "win_service_iter", lambda: iter(rows))
+
+        assert [s["name"] for s in optimizer_module.collect_services()] == ["Ok"]
+
+    def test_service_without_path_is_kept(self, monkeypatch):
+        rows = [fake_service("NoPath", "", "manual", "stopped")]
+        monkeypatch.setattr(optimizer_module.psutil, "win_service_iter", lambda: iter(rows))
+
+        (entry,) = optimizer_module.collect_services()
+        assert entry["path"] is None
+
+    async def test_service_cache_uses_scm_enumeration(self, optimizer, monkeypatch):
+        rows = [fake_service("MapsBroker", r"C:\x.exe"), fake_service("Other", r"C:\y.exe")]
+        monkeypatch.setattr(optimizer_module.psutil, "win_service_iter", lambda: iter(rows))
+
+        await optimizer._cache_existing_services()
+
+        assert optimizer._service_cache == {"mapsbroker", "other"}
 
 
 # --- Точка восстановления --------------------------------------------------

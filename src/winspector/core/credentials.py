@@ -58,8 +58,9 @@ def looks_like_key(value: str | None) -> bool:
     candidate = value.strip()
     if not MIN_KEY_LENGTH <= len(candidate) <= MAX_KEY_LENGTH:
         return False
-    # Пробелы внутри означают, что скопировали лишнее.
-    return not any(character.isspace() for character in candidate)
+    # Пробелы внутри означают, что скопировали лишнее. Кириллица и прочие
+    # не-ASCII символы в ключе невозможны — это опечатка или чужой текст.
+    return candidate.isascii() and not any(character.isspace() for character in candidate)
 
 
 def save_api_key(api_key: str) -> None:

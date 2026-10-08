@@ -154,50 +154,54 @@ class TestModeDetection:
         assert core._detect_ai_mode() is True
 
 
+def wire_system(core: WinSpectorCore, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    """Подменяет все обращения к системе; возвращает журнал вызовов."""
+    calls: dict[str, Any] = {}
+
+    async def restore_point():
+        calls["restore_point"] = True
+
+    async def profile():
+        return {"hardware": {}}
+
+    async def components():
+        return SERVICES
+
+    async def junk(*_args, **_kwargs):
+        return {"temp": {"files_to_delete": [], "folders_to_clean": []}}
+
+    async def standard():
+        return {"cleaned_size_bytes": 2048, "deleted_files_count": 3, "errors": 0}
+
+    async def deep(decisions, report):
+        calls["deep_decisions"] = decisions
+        return {"cleaned_size_bytes": 1024, "deleted_files_count": 1, "errors": 0}
+
+    async def empty_folders(extra_paths=None, app_dirs=None):
+        return {"deleted_folders_count": 0, "errors": 0, "app_dirs_removed": []}
+
+    async def execute(plan, progress=None):
+        calls["executed"] = plan
+        return {"completed": list(plan), "failed": [], "skipped": []}
+
+    monkeypatch.setattr(core.windows_optimizer, "create_restore_point", restore_point)
+    monkeypatch.setattr(core.user_profiler, "get_system_profile", profile)
+    monkeypatch.setattr(core.windows_optimizer, "get_system_components", components)
+    monkeypatch.setattr(core.smart_cleaner, "find_junk_files_deep", junk)
+    monkeypatch.setattr(core.smart_cleaner, "perform_standard_cleanup", standard)
+    monkeypatch.setattr(core.smart_cleaner, "perform_deep_cleanup", deep)
+    monkeypatch.setattr(core.smart_cleaner, "cleanup_all_empty_folders_async", empty_folders)
+    monkeypatch.setattr(core.windows_optimizer, "execute_action_plan", execute)
+    return calls
+
+
 class TestOfflineRun:
     """Полный сценарий без ИИ: система изменяется, отчёт выдаётся."""
 
     @pytest.fixture
     def wired_core(self, kb_dir, monkeypatch):
         core = make_core(kb_dir, force_offline=True)
-        calls: dict[str, Any] = {}
-
-        async def restore_point():
-            calls["restore_point"] = True
-
-        async def profile():
-            return {"hardware": {}}
-
-        async def components():
-            return SERVICES
-
-        async def junk():
-            return {"temp": {"files_to_delete": [], "folders_to_clean": []}}
-
-        async def standard():
-            return {"cleaned_size_bytes": 2048, "deleted_files_count": 3, "errors": 0}
-
-        async def deep(decisions, report):
-            calls["deep_decisions"] = decisions
-            return {"cleaned_size_bytes": 1024, "deleted_files_count": 1, "errors": 0}
-
-        async def empty_folders():
-            return {"deleted_folders_count": 0, "errors": 0}
-
-        async def execute(plan, progress=None):
-            calls["executed"] = plan
-            return {"completed": list(plan), "failed": [], "skipped": []}
-
-        monkeypatch.setattr(core.windows_optimizer, "create_restore_point", restore_point)
-        monkeypatch.setattr(core.user_profiler, "get_system_profile", profile)
-        monkeypatch.setattr(core.windows_optimizer, "get_system_components", components)
-        monkeypatch.setattr(core.smart_cleaner, "find_junk_files_deep", junk)
-        monkeypatch.setattr(core.smart_cleaner, "perform_standard_cleanup", standard)
-        monkeypatch.setattr(core.smart_cleaner, "perform_deep_cleanup", deep)
-        monkeypatch.setattr(core.smart_cleaner, "cleanup_all_empty_folders_async", empty_folders)
-        monkeypatch.setattr(core.windows_optimizer, "execute_action_plan", execute)
-
-        return core, calls
+        return core, wire_system(core, monkeypatch)
 
     async def test_completes_without_ai(self, wired_core):
         core, calls = wired_core
@@ -275,3 +279,38 @@ class TestGracefulDegradation:
 
         assert core.ai_enabled is False, "режим должен переключиться на офлайн"
         assert [item["id"] for item in session["ai_plan"]["action_plan"]] == ["safeservice"]
+
+    async def test_lost_connection_finishes_run_without_ai(self, kb_dir, monkeypatch):
+        """
+        Нет интернета — SDK выбрасывает `httpx.ConnectError`, не наследника
+        `OSError`. Раньше эта ошибка проходила мимо обработчиков и обрывала
+        сценарий сразу после точки восстановления.
+        """
+        import httpx
+
+        class OfflineModels:
+            async def generate_content(self, **_kwargs):
+                raise httpx.ConnectError("нет сети")
+
+        offline_client = type("C", (), {"aio": type("A", (), {"models": OfflineModels()})()})()
+        monkeypatch.setattr(
+            "winspector.core.modules.ai_base.AIBase._get_client",
+            classmethod(lambda cls: offline_client),
+        )
+
+        async def instant_sleep(_delay=0, result=None):
+            return result
+
+        monkeypatch.setattr("asyncio.sleep", instant_sleep)
+        monkeypatch.setattr(
+            "winspector.core.analyzer.AIBase.has_api_key", staticmethod(lambda: True)
+        )
+        core = make_core(kb_dir, force_offline=False)
+        calls = wire_system(core, monkeypatch)
+
+        report = await core.run_autonomous_optimization()
+        await core.shutdown()
+
+        assert [item["id"] for item in calls["executed"]] == ["safeservice"]
+        assert "ИИ в этот раз не ответил" in report
+        assert "укажите бесплатный ключ" not in report

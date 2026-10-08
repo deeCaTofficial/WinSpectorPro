@@ -1,186 +1,213 @@
-/* ===================================================================
- * WinSpector Pro Main Stylesheet - v1.4 (Qt-Compatible)
- * =================================================================== */
+/*
+ * WinSpector Pro — единое оформление всех окон.
+ * {имя} — цвет из src/winspector/gui/theme.py; подставляется при загрузке.
+ */
 
-/* ---------------------------------
- * 1. Основные контейнеры
- * --------------------------------- */
- 
-QMainWindow {
-    background: transparent;
+QMainWindow, QDialog, QMessageBox { background: {bg}; }
+QWidget { color: {text}; }
+QToolTip { color: {text}; background: {surface_hover}; border: 1px solid {border_strong}; padding: 6px 8px; border-radius: 6px; }
+QLabel { background: transparent; }
+
+QMenu {
+    background: {surface_hover}; color: {text};
+    border: 1px solid {border_strong}; border-radius: 8px; padding: 4px;
 }
+QMenu::item { padding: 6px 28px 6px 12px; border-radius: 6px; background: transparent; }
+QMenu::item:selected { background: {accent_soft}; }
+QMenu::item:disabled { color: {dim}; }
+QMenu::separator { height: 1px; background: {border_strong}; margin: 4px 8px; }
 
-QToolTip {
-    color: #c8d6e5;
-    background-color: #2b3342;
-    border: 1px solid #4a5568;
-    border-radius: 4px;
-    padding: 5px;
-}
+QMessageBox QLabel { color: {text}; }
+QMessageBox QPushButton { min-width: 88px; }
 
-/* Стеклянный контейнер с эффектом размытия фона */
-#GlassContainer {
-    background-color: rgba(30, 35, 45, 0.7); /* Полупрозрачный фон */
-    border-radius: 15px; /* Скругленные углы по умолчанию */
-    /* Убираем рамку полностью, так как она является источником артефактов.
-       Защита от системного свечения обеспечивается через NoFocus в коде. */
-    border: none;
-    outline: none; /* Убираем контур фокуса */
-}
+/* --- Типографика ------------------------------------------------------------- */
 
-/* Когда окно развернуто, убираем скругление углов */
-#GlassContainer[maximized="true"] {
-    border-radius: 0px;
-}
+#Heading { font-family: "{heading_family}"; font-size: 28px; color: {text}; }
+#PageTitle, #DialogTitle { font-family: "{heading_family}"; font-size: 22px; color: {text}; }
+#SectionTitle { font-family: "{heading_family}"; font-size: 15px; color: {text}; }
+#Lead { color: {muted}; font-size: 15px; }
+#Muted, #MutedText { color: {muted}; }
+#Caption { color: {dim}; font-size: 12px; }
+#MessageTitle { font-family: "{heading_family}"; font-size: 16px; color: {text}; }
+#MessageText { color: {muted}; font-size: 13px; }
+#FieldLabel { color: {muted}; font-size: 13px; }
 
-TitleBar {
-    background: transparent;
-}
-
-/* -----------------------------------------------------------
- * 2. Страницы и их фон
- * ----------------------------------------------------------- */
-
-/* Делаем фон всех страниц внутри QStackedWidget прозрачным,
-   чтобы был виден фон #GlassContainer. */
-#HomePageWrapper, #ProcessingPage, #ResultsPage {
-    background: transparent;
-}
-
-/* ---------------------------------
- * 3. Типографика
- * --------------------------------- */
-
-#TitleLabel {
-    font-size: 32px;
-    font-weight: 600;
-    padding-top: 10px;
-    color: white;
-}
-
-#SubtitleLabel {
-    font-size: 14px;
-    color: #b0b0b0;
-    padding-bottom: 20px;
-}
-
-#StatusLabel {
-    font-size: 20px;
-    font-weight: 500;
-    color: #FFFFFF;
-    padding-bottom: 15px;
-}
-
-#ResultTitle {
-    font-size: 24px;
-    font-weight: 600;
-    color: #EAEAEA;
-    margin-bottom: 10px;
-}
-
-/* ---------------------------------
- * 4. Элементы управления
- * --------------------------------- */
+/* --- Кнопки -------------------------------------------------------------------- */
 
 QPushButton {
-    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #0078D4, stop:1 #005a9e);
-    color: white;
-    font-size: 14px;
-    font-weight: bold;
-    border: 1px solid #0078D4;
-    border-radius: 8px;
-    padding: 10px 25px;
-    min-width: 150px;
+    background: transparent; color: {text};
+    border: 1px solid {border_strong}; border-radius: 8px;
+    padding: 0 16px; min-height: 36px;
+}
+QPushButton:hover { background: {surface_hover}; }
+QPushButton:pressed { background: {surface}; }
+/* Рамка фокуса — только при переходе с клавиатуры (Tab, Shift+Tab, Alt+буква).
+   Свойство focusRing ставит theme._FocusRing; после клика, Alt+Tab и закрытия
+   окон рамки нет, как :focus-visible в браузерах. */
+QPushButton[focusRing="true"] { border-color: {muted}; }
+QPushButton:disabled { color: {dim}; border-color: {border}; background: transparent; }
+
+#PrimaryButton, #PrimaryAction {
+    background: {accent}; color: #FFFFFF; border: 1px solid {accent}; font-weight: 600;
+}
+#PrimaryButton:hover, #PrimaryAction:hover { background: {accent_hover}; border-color: {accent_hover}; }
+#PrimaryButton:pressed, #PrimaryAction:pressed { background: {accent_pressed}; border-color: {accent_pressed}; }
+#PrimaryButton[focusRing="true"], #PrimaryAction[focusRing="true"] { border-color: {accent_text}; }
+#PrimaryButton:disabled, #PrimaryAction:disabled { background: {surface_hover}; border-color: {surface_hover}; color: {dim}; }
+#PrimaryAction { font-size: 16px; min-height: 48px; border-radius: 10px; padding: 0 32px; }
+
+#DangerButton { color: {danger}; border-color: {border_strong}; }
+#DangerButton:hover { background: {danger_soft}; border-color: {danger}; }
+#DangerButton[focusRing="true"] { border-color: {muted}; }
+
+/* Необратимое действие в подтверждении: сплошная красная кнопка. */
+#DangerAction {
+    background: {danger_fill}; color: #FFFFFF; border: 1px solid {danger_fill}; font-weight: 600;
+}
+#DangerAction:hover { background: {danger_fill_hover}; border-color: {danger_fill_hover}; }
+#DangerAction:pressed { background: {danger_fill_pressed}; border-color: {danger_fill_pressed}; }
+#DangerAction[focusRing="true"] { border-color: {text}; }
+
+/* Кнопка-ссылка: текст без рамки. Прозрачная рамка держит место под рамку
+   фокуса, чтобы при её появлении текст не сдвигался. */
+#LinkButton {
+    color: {accent_text}; border: 1px solid transparent; border-radius: 6px;
+    padding: 0 4px; min-height: 26px; background: transparent;
+}
+#LinkButton:hover { color: {accent_text}; text-decoration: underline; background: transparent; }
+#LinkButton[focusRing="true"] { border-color: {accent_text}; }
+/* В карточках отчёта ссылка начинается вровень с текстом над ней. */
+#ReportCard #LinkButton { padding: 0 4px 0 0; }
+
+/* Круглая кнопка-значок. Подложка полупрозрачная, чтобы под ней было видно
+   подвижный фон; рамка — только при переходе клавишей Tab. */
+#IconButton {
+    border: 1px solid transparent; border-radius: 18px; padding: 0; background: transparent;
+    /* Размер задаётся здесь: иначе общее правило кнопок сбрасывает высоту,
+       и кнопка сплющивается до высоты значка. С рамкой выходит 36 × 36. */
+    min-width: 34px; max-width: 34px; min-height: 34px; max-height: 34px;
+}
+#IconButton:hover { background: rgba(255, 255, 255, 0.07); }
+#IconButton:pressed { background: rgba(255, 255, 255, 0.04); }
+#IconButton[focusRing="true"] { border-color: {border_strong}; }
+
+/* Свой заголовок окна: у неактивного окна название бледнеет, как в Windows. */
+#WindowTitle { color: {muted}; font-size: 12px; }
+#WindowTitle[inactive="true"] { color: {dim}; }
+
+#UpdateNotice {
+    color: {accent_text}; background: {accent_soft}; border: 0;
+    border-radius: 14px; padding: 0 14px; min-height: 28px; font-size: 13px;
+}
+#UpdateNotice:hover { color: #FFFFFF; }
+
+/* --- Главное окно ----------------------------------------------------------- */
+
+#AiStatusLabel { color: {muted}; font-size: 13px; }
+#StatusDot { background: {dim}; border-radius: 4px; }
+#StatusDot[mode="connected"] { background: {success}; }
+
+#ProgressStatus { color: {muted}; font-size: 15px; }
+#StageLabel { color: {dim}; font-size: 14px; }
+#StageLabel[stage="done"] { color: {muted}; }
+#StageLabel[stage="active"] { color: {text}; font-weight: 600; }
+
+/* Экран итогов: заголовок, три числа и карточки. */
+#ReportContent { background: transparent; }
+#ReportTitle { font-family: "{heading_family}"; font-size: 22px; color: {text}; }
+#ReportTile, #ReportCard {
+    background: {surface}; border: 1px solid {border}; border-radius: 12px;
+}
+#TileLabel { color: {muted}; font-size: 12px; }
+#TileValue { font-family: "{heading_family}"; font-size: 26px; color: {text}; }
+#TileCaption { color: {dim}; font-size: 12px; }
+#CardTitle { font-family: "{heading_family}"; font-size: 15px; color: {text}; }
+#CardMeta { color: {muted}; font-size: 13px; }
+#CardText { color: {muted}; font-size: 13px; }
+#ReportRowName { color: {text}; font-size: 13px; }
+#ReportRowValue { color: {muted}; font-size: 13px; }
+#ReportNote { color: {dim}; font-size: 12px; }
+#ReportText {
+    background: transparent; border: 0; padding: 0;
+    color: {text}; selection-background-color: {accent};
 }
 
-QPushButton:hover {
-    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #108de0, stop:1 #006ac1);
-    border-color: #108de0;
+/* --- Поля ввода и списки -------------------------------------------------- */
+
+QLineEdit {
+    background: {input}; color: {text};
+    border: 1px solid {border_strong}; border-radius: 8px;
+    padding: 0 12px; min-height: 36px; selection-background-color: {accent};
+}
+QLineEdit:hover { border-color: {dim}; }
+QLineEdit:focus { border-color: {accent_text}; }
+QLineEdit:disabled { color: {dim}; border-color: {border}; }
+
+QComboBox {
+    background: {surface}; color: {text};
+    border: 1px solid {border_strong}; border-radius: 8px;
+    padding: 0 12px; min-height: 36px; min-width: 180px;
+}
+QComboBox:hover { border-color: {dim}; }
+QComboBox[focusRing="true"] { border-color: {accent_text}; }
+QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: center right; border: 0; width: 28px; }
+QComboBox::down-arrow { image: url({icons}/chevron-down.svg); width: 14px; height: 14px; }
+QComboBox QAbstractItemView {
+    background: {surface_hover}; color: {text}; border: 1px solid {border_strong};
+    selection-background-color: {accent_soft}; selection-color: {text}; outline: 0; padding: 4px;
 }
 
-QPushButton:pressed {
-    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #005a9e, stop:1 #004b8e);
-    border-color: #005a9e;
+QListWidget {
+    background: {surface}; border: 1px solid {border}; border-radius: 10px;
+    padding: 4px; outline: 0; font-size: 14px;
+}
+QListWidget::item { padding: 8px 10px; border-radius: 6px; color: {text}; }
+QListWidget::item:hover { background: {surface_hover}; }
+QListWidget::item:selected { background: {accent_soft}; color: {text}; }
+
+#EmptyState {
+    color: {dim}; font-size: 13px;
+    border: 1px dashed {border_strong}; border-radius: 10px; padding: 24px;
 }
 
-QPushButton:disabled {
-    background-color: #555555;
-    border-color: #666666;
-    color: #999999;
+/* Сообщение под полем ключа: ошибка или ход проверки. */
+#KeyStatus {
+    color: #FFC9CB; background: {danger_soft}; border-radius: 8px;
+    padding: 8px 12px; font-size: 13px;
 }
+#KeyStatus[state="info"] { color: {text}; background: {accent_soft}; }
 
-#CancelButton {
-    /* Очень темный фон, чтобы кнопка была заметна, но не отвлекала */
-    background-color: qradialgradient(cx:0.5, cy:0.5, radius:0.9, fx:0.5, fy:0.5, stop:0 rgba(40, 50, 65, 0.6), stop:1 rgba(30, 35, 45, 0.8));
-    color: #a0a0a0;
-    border: 1px solid #2a3341;
+/* --- Настройки --------------------------------------------------------------- */
+
+QTabWidget::pane { border: 0; border-top: 1px solid {border}; top: -1px; }
+QTabWidget::tab-bar { left: 0; }
+QTabBar::tab {
+    background: transparent; color: {muted};
+    padding: 10px 2px; margin-right: 24px;
+    border: 0; border-bottom: 2px solid transparent;
 }
+QTabBar::tab:hover { color: {text}; }
+QTabBar::tab:selected { color: {text}; border-bottom-color: {accent}; }
 
-#CancelButton:hover {
-    /* Эффект свечения при наведении, в стиле главной кнопки */
-    background-color: qradialgradient(cx:0.5, cy:0.5, radius:0.9, fx:0.5, fy:0.5, stop:0 rgba(30, 144, 255, 0.5), stop:1 rgba(30, 35, 45, 0.8));
-    color: white;
-    border: 1px solid #1E90FF;
-}
+/* Строка настройки: значок, название, пояснение и действие справа. */
+#SettingRow { background: {surface}; border: 1px solid {border}; border-radius: 10px; }
+#RowTitle { color: {text}; font-size: 14px; }
+#RowSubtitle { color: {muted}; font-size: 12px; }
+/* Ширина содержимого: вместе с отступами и стрелкой поле равно кнопкам строк (150 px). */
+#SettingRow QComboBox { min-width: 124px; max-width: 124px; }
 
-#CancelButton:pressed {
-    /* Более интенсивное свечение при нажатии */
-    background-color: qradialgradient(cx:0.5, cy:0.5, radius:0.9, fx:0.5, fy:0.5, stop:0 rgba(30, 144, 255, 0.6), stop:1 rgba(30, 35, 45, 0.9));
-    border-color: #0078D4;
-}
+QScrollArea { background: transparent; border: 0; }
+#SettingsPage { background: transparent; }
 
-QProgressBar {
-    border: 1px solid #2a3341;
-    border-radius: 6px;
-    text-align: center;
-    background-color: rgba(0, 0, 0, 0.4);
-    height: 12px;
-    color: transparent;
-}
+/* --- Полосы прокрутки --------------------------------------------------- */
 
-QProgressBar::chunk {
-    border-radius: 5px;
-    background-color: qlineargradient(
-        x1:0, y1:0.5, x2:1, y2:0.5,
-        stop:0 #1E90FF, stop:1 #00BFFF
-    );
-}
-
-#ReportBrowser {
-    background-color: rgba(0, 0, 0, 0.25);
-    border: 1px solid #444;
-    border-radius: 8px;
-    color: #EAEAEA;
-    font-size: 14px;
-    padding: 10px;
-}
-
-/* ---------------------------------
- * 5. Скроллбары
- * --------------------------------- */
-
-QScrollBar:vertical {
-    border: none;
-    background: transparent;
-    width: 10px;
-    margin: 0;
-}
-
-QScrollBar::handle:vertical {
-    background: #555;
-    border-radius: 5px;
-    min-height: 25px;
-}
-
-QScrollBar::handle:vertical:hover {
-    background: #108de0;
-}
-
-QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-    height: 0px;
-    background: none;
-}
-
-QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
-    background: none;
-}
+QScrollBar:vertical { background: transparent; width: 10px; margin: 2px; }
+QScrollBar::handle:vertical { background: {border_strong}; border-radius: 3px; min-height: 32px; margin: 0 2px; }
+QScrollBar::handle:vertical:hover { background: {dim}; }
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: transparent; }
+QScrollBar:horizontal { background: transparent; height: 10px; margin: 2px; }
+QScrollBar::handle:horizontal { background: {border_strong}; border-radius: 3px; min-width: 32px; margin: 2px 0; }
+QScrollBar::handle:horizontal:hover { background: {dim}; }
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: transparent; }

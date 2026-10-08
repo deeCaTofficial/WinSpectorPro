@@ -176,6 +176,97 @@ class TestCleanupRules:
                     offenders.setdefault(rule["category_id"], []).append(path)
         assert not offenders, f"слишком широкие пути очистки: {offenders}"
 
+    def test_wildcards_only_stand_for_profiles_never_for_targets(self, cleanup_rules):
+        """
+        `*` в правиле для каталогов подставляет профиль или игру
+        (`User Data\\*\\Cache`, `*\\Saved\\Logs`), но никогда не является самой
+        целью: `%LOCALAPPDATA%\\*` удалило бы данные всех программ.
+        """
+        offenders: dict[str, list[str]] = {}
+        for rule in cleanup_rules:
+            if str(rule.get("cleanup_type", "folder")).lower() == "files":
+                continue
+            for path in rule.get("paths") or []:
+                last = str(path).rstrip("\\/").rsplit("\\", 1)[-1]
+                if last in ("*", "**") or ("*" in last and len(last.replace("*", "")) < 4):
+                    offenders.setdefault(rule["category_id"], []).append(path)
+        assert not offenders, f"подстановка не может быть целью очистки: {offenders}"
+
+    def test_high_rules_target_only_regenerable_names(self, cleanup_rules):
+        """
+        Автоматическая очистка (`safety: high`) допустима только для каталогов,
+        имя которых само говорит «кеш, журнал, временное, дамп»: всё остальное
+        решает ИИ или человек.
+        """
+        allowed = (
+            "cache",
+            "cache2",
+            "cachestorage",
+            "cached",
+            "cachedata",
+            "logs",
+            "log",
+            "crash",
+            "crashes",
+            "crashpad",
+            "dumps",
+            "minidump",
+            "temp",
+            "tmp",
+            "report",
+            "webcache",
+            "httpcache",
+            "depotcache",
+            "download",
+            "downloader",
+            "thumbnails",
+            "otele",
+            "gatherlogs",
+            "etllogs",
+            "startupcache",
+            "jumplistcache",
+            "offlinecache",
+            "shader",
+            "gpu",
+            "dawn",
+            "component_crx",
+            "cef",
+            "webview",
+            "browsercache",
+            "telemetry",
+            "ntfs",
+            "wer",
+            "support",
+            "prefetch",
+            "delivery",
+            "softwaredistribution",
+            "cbs",
+            "dism",
+            "windowsupdate",
+            "usoshared",
+            "downloaded program files",
+            "cachedextensionvsixs",
+            "graphite",
+            ".obsolete",
+            "nvph",
+            "glcache",
+            "dxcache",
+        )
+        # Каталоги распаковки установщиков драйверов проверены отдельно:
+        # их имя — производитель, но содержимое — временные файлы установки.
+        reviewed = {r"c:\amd", r"c:\nvidia"}
+        offenders: dict[str, list[str]] = {}
+        for rule in cleanup_rules:
+            if str(rule.get("safety", "")).lower() != "high":
+                continue
+            for path in rule.get("paths") or []:
+                if str(path).rstrip("\\/").lower() in reviewed:
+                    continue
+                last = str(path).rstrip("\\/").rsplit("\\", 1)[-1].lower()
+                if not any(token in last for token in allowed):
+                    offenders.setdefault(rule["category_id"], []).append(path)
+        assert not offenders, f"имя цели не похоже на кеш/журнал: {offenders}"
+
     def test_every_rule_has_a_russian_description(self, cleanup_rules):
         missing = [
             rule["category_id"]

@@ -20,6 +20,36 @@ KB_DIR = PROJECT_ROOT / "src" / "winspector" / "data" / "knowledge_base"
 
 
 @pytest.fixture(autouse=True)
+def isolate_language_settings(
+    tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+):
+    """Не читать и не менять пользовательский выбор языка при проверках."""
+    from winspector.gui.language import set_language
+
+    # Отдельный каталог, а не `tmp_path`: тесты очистки считают размер
+    # `tmp_path`, и файл настроек (26 байт) попадал бы в их подсчёт.
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path_factory.mktemp("localappdata")))
+    set_language("ru")
+
+
+@pytest.fixture(autouse=True)
+def isolate_leftovers(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    """
+    Ни один тест не должен искать остатки на настоящей машине и тем более
+    переносить их в карантин: ядро в тестах видит пустой отчёт, а карантин
+    по умолчанию живёт во временном каталоге pytest.
+    """
+    from winspector.core.analyzer import WinSpectorCore
+    from winspector.core.modules import leftover_scanner, quarantine
+
+    async def no_leftovers(self):
+        return leftover_scanner.LeftoverReport()
+
+    monkeypatch.setattr(WinSpectorCore, "_scan_leftovers", no_leftovers)
+    monkeypatch.setattr(quarantine, "quarantine_root", lambda: tmp_path / "quarantine")
+
+
+@pytest.fixture(autouse=True)
 def isolate_ai_client(monkeypatch: pytest.MonkeyPatch):
     """
     Изолирует тесты от реального API.
@@ -40,7 +70,7 @@ def ai_config() -> dict[str, Any]:
     """Конфигурация ядра с коротким TTL кеша."""
     return {
         "app_config": {
-            "ai_model": "gemini-2.5-flash",
+            "ai_model": "gemini-3.8-flash",
             "ai_cache_ttl": 3600,
             "ai_request_timeout": 5,
         }

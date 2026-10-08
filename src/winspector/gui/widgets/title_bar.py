@@ -1,182 +1,230 @@
-# src/winspector/gui/widgets/title_bar.py
 """
-Кастомный, полностью стилизованный и управляемый TitleBar для приложения,
-обеспечивающий перемещение безрамочного окна и кастомные кнопки управления.
+Своя полоса заголовка главного окна.
+
+В системный заголовок не поставить кнопки приложения, и он отделяет окно
+от фона полосой другого цвета. Эта полоса прозрачная — под ней та же сетка
+точек, что и под содержимым, — и в ней помещаются название, кнопки
+приложения (шестерёнка настроек) и кнопки окна.
+
+Перетаскивание, привязку к краям экрана, двойной щелчок и меню окна
+по-прежнему делает сама Windows: `frameless.py` сообщает ей, где у окна
+заголовок и где кнопка «Развернуть». Без Windows (например, в тестах)
+окно двигается через `startSystemMove`.
 """
 
-from PyQt6.QtCore import QPointF, QRectF, QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QPainter, QPen
-from PyQt6.QtWidgets import QHBoxLayout, QLabel, QWidget
+from __future__ import annotations
+
+from PyQt6.QtCore import QEvent, QObject, QPoint, Qt, QTimer
+from PyQt6.QtGui import QColor, QCursor, QFont, QPainter
+from PyQt6.QtWidgets import QAbstractButton, QHBoxLayout, QLabel, QWidget
+
+from ..language import localize
+from ..theme import DIM, TEXT, icon_font
+
+HEIGHT = 40
+_BUTTON_WIDTH = 46
+_GLYPH_SIZE = 10
+
+GLYPH_MINIMIZE = "\ue921"
+GLYPH_MAXIMIZE = "\ue922"
+GLYPH_RESTORE = "\ue923"
+GLYPH_CLOSE = "\ue8bb"
+
+# Подсветка как у кнопок окна в тёмной теме Windows 11.
+_HOVER = QColor(255, 255, 255, 15)
+_PRESSED = QColor(255, 255, 255, 10)
+_CLOSE_HOVER = QColor("#C42B1C")
+_CLOSE_PRESSED = QColor(196, 43, 28, 230)
+
+# Пока кнопкой «Развернуть» управляет Windows, Qt не сообщает об уходе
+# курсора: подсветку снимает проверка положения курсора.
+_NATIVE_HOVER_CHECK_MS = 80
 
 
-class TitleBarButton(QWidget):
-    """
-    Кастомная круглая, стилизованная кнопка, используемая в TitleBar.
-    Отрисовывает символы управления окном вручную для достижения
-    единого, четкого стиля и обрабатывает события наведения мыши.
-    """
+class CaptionButton(QAbstractButton):
+    """Кнопка окна: свернуть, развернуть или закрыть."""
 
-    clicked = pyqtSignal()
-
-    # --- Цветовая палитра (оптимизация) ---
-    _BG_COLOR = QColor(44, 48, 56, 150)
-    _BORDER_COLOR = QColor(80, 160, 255, 120)
-    _SYMBOL_COLOR = QColor(200, 200, 200)
-    _HOVER_BG_COLOR = QColor(80, 160, 255, 80)
-    _HOVER_SYMBOL_COLOR = QColor(255, 255, 255)
-
-    def __init__(self, symbol: str, parent=None):
+    def __init__(self, glyph: str, *, close: bool = False, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.symbol = symbol
-        self.setFixedSize(28, 28)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.is_hovered = False
+        self._glyph = glyph
+        self._close = close
+        self._window_active = True
+        # Состояние от Windows: над «Развернуть» мышью управляет система.
+        self._native_hover = False
+        self._native_pressed = False
+        self.setFixedSize(_BUTTON_WIDTH, HEIGHT)
+        # Кнопки окна в Windows не участвуют в переходе по Tab.
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
-        # Атрибут для кэширования геометрии символа
-        self._symbol_rect = QRectF()
+    @property
+    def glyph(self) -> str:
+        return self._glyph
 
-    def resizeEvent(self, event):
-        """Кэширует геометрию для отрисовки символа при изменении размера."""
-        super().resizeEvent(event)
-        # Центрируем область 10x10 для отрисовки символа внутри кнопки 28x28
-        padding = (self.width() - 10) / 2
-        self._symbol_rect = QRectF(padding, padding, 10, 10)
+    def set_glyph(self, glyph: str) -> None:
+        self._glyph = glyph
+        self.update()
 
-    def paintEvent(self, event):
-        """Отрисовывает кнопку и ее символ, используя кэшированную геометрию."""
+    def set_window_active(self, active: bool) -> None:
+        self._window_active = active
+        self.update()
+
+    @property
+    def native_pressed(self) -> bool:
+        return self._native_pressed
+
+    def set_native_state(self, *, hover: bool, pressed: bool) -> None:
+        if (hover, pressed) != (self._native_hover, self._native_pressed):
+            self._native_hover, self._native_pressed = hover, pressed
+            self.update()
+
+    def enterEvent(self, event) -> None:
+        super().enterEvent(event)
+        self.update()
+
+    def leaveEvent(self, event) -> None:
+        super().leaveEvent(event)
+        self.update()
+
+    def paintEvent(self, event) -> None:
+        hovered = self.underMouse() or self._native_hover
+        pressed = self.isDown() or self._native_pressed
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        current_bg = self._HOVER_BG_COLOR if self.is_hovered else self._BG_COLOR
-        current_symbol = self._HOVER_SYMBOL_COLOR if self.is_hovered else self._SYMBOL_COLOR
-
-        painter.setPen(QPen(self._BORDER_COLOR, 1))
-        painter.setBrush(current_bg)
-        painter.drawEllipse(self.rect().adjusted(1, 1, -1, -1))
-
-        # --- Ручная отрисовка символов для идеального вида ---
-        pen = QPen(current_symbol)
-        pen.setCapStyle(Qt.PenCapStyle.RoundCap)  # Сглаженные концы для всех линий
-        painter.setPen(pen)
-
-        symbol_rect = self._symbol_rect  # Используем кэшированное значение
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-
-        if self.symbol == "□":  # Развернуть
-            pen.setWidthF(1.2)
-            painter.setPen(pen)
-            painter.drawRect(symbol_rect.toRect())
-        elif self.symbol == "—":  # Свернуть
-            pen.setWidthF(1.5)
-            painter.setPen(pen)
-            center_y = symbol_rect.center().y()
-            painter.drawLine(
-                QPointF(symbol_rect.left(), center_y), QPointF(symbol_rect.right(), center_y)
-            )
-        elif self.symbol == "✕":  # Закрыть
-            pen.setWidthF(1.5)
-            painter.setPen(pen)
-            cross_rect = symbol_rect.adjusted(1.5, 1.5, -1.5, -1.5)
-            painter.drawLine(cross_rect.topLeft(), cross_rect.bottomRight())
-            painter.drawLine(cross_rect.topRight(), cross_rect.bottomLeft())
-
-    def enterEvent(self, event):
-        """Обрабатывает наведение курсора мыши."""
-        self.is_hovered = True
-        self.update()
-
-    def leaveEvent(self, event):
-        """Обрабатывает уход курсора мыши."""
-        self.is_hovered = False
-        self.update()
-
-    def mousePressEvent(self, event):
-        """При нажатии левой кнопкой мыши испускаем сигнал 'clicked'."""
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.clicked.emit()
-            event.accept()  # Важно: предотвращаем "прокликивание" на TitleBar
-        super().mousePressEvent(event)
+        if pressed or hovered:
+            if self._close:
+                painter.fillRect(self.rect(), _CLOSE_PRESSED if pressed else _CLOSE_HOVER)
+            else:
+                painter.fillRect(self.rect(), _PRESSED if pressed else _HOVER)
+        if self._close and (pressed or hovered):
+            color = QColor("#FFFFFF")
+        else:
+            # У неактивного окна значки бледнеют, как у системных кнопок.
+            color = QColor(TEXT if self._window_active or hovered else DIM)
+        font = icon_font(_GLYPH_SIZE)
+        if font is not None:
+            # Без цветной каймы ClearType: тонкие значки с ней рябят.
+            font.setStyleStrategy(QFont.StyleStrategy.NoSubpixelAntialias)
+            painter.setFont(font)
+            painter.setPen(color)
+            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self._glyph)
+        painter.end()
 
 
 class TitleBar(QWidget):
-    """
-    Кастомный TitleBar для управления окном. Включает в себя иконку, заголовок
-    и кастомные кнопки управления. Обрабатывает перетаскивание окна.
-    """
+    """Название, кнопки приложения и кнопки окна в одной прозрачной полосе."""
 
-    def __init__(self, parent=None):
+    def __init__(self, window: QWidget, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setFixedHeight(45)
-        # Атрибут для хранения смещения курсора относительно угла окна
-        self.drag_position = None
-        self._setup_ui()
+        self._window = window
+        self.setFixedHeight(HEIGHT)
 
-    def _setup_ui(self):
-        """Создает и настраивает пользовательский интерфейс TitleBar."""
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(15, 0, 10, 0)
-        layout.setSpacing(10)
-
-        icon_label = QLabel()
-        # Главное окно уже загружает единый `assets/app.ico`; повторный файл
-        # или отдельный путь для заголовка не нужны.
-        app_icon = self.window().windowIcon()
-        icon_label.setPixmap(app_icon.pixmap(QSize(22, 22)))
-
-        title_label = QLabel("WinSpector Pro")
-        title_label.setStyleSheet("color: white; font-size: 14px; font-weight: 600;")
-
-        layout.addWidget(icon_label)
-        layout.addWidget(title_label)
+        layout.setContentsMargins(14, 0, 0, 0)
+        layout.setSpacing(0)
+        self.title = QLabel(window.windowTitle())
+        self.title.setObjectName("WindowTitle")
+        layout.addWidget(self.title)
+        layout.addSpacing(12)
+        # Слева, после названия, — уведомления; справа, у кнопок окна, —
+        # кнопки приложения.
+        self.leading = QHBoxLayout()
+        self.leading.setSpacing(8)
+        layout.addLayout(self.leading)
         layout.addStretch()
+        self.trailing = QHBoxLayout()
+        self.trailing.setSpacing(4)
+        layout.addLayout(self.trailing)
+        layout.addSpacing(8)
 
-        self._create_and_connect_buttons(layout)
+        self.minimize_button = CaptionButton(GLYPH_MINIMIZE)
+        self.maximize_button = CaptionButton(GLYPH_MAXIMIZE)
+        self.close_button = CaptionButton(GLYPH_CLOSE, close=True)
+        for button in (self.minimize_button, self.maximize_button, self.close_button):
+            layout.addWidget(button)
+        self.minimize_button.clicked.connect(window.showMinimized)
+        self.maximize_button.clicked.connect(self.toggle_maximized)
+        self.close_button.clicked.connect(window.close)
 
-    def _create_and_connect_buttons(self, layout: QHBoxLayout):
-        """Создает и подключает кнопки управления окном."""
-        minimize_button = TitleBarButton("—")
-        maximize_button = TitleBarButton("□")
-        close_button = TitleBarButton("✕")
+        window.windowTitleChanged.connect(self.title.setText)
+        window.installEventFilter(self)
+        self._native_check = QTimer(self)
+        self._native_check.setInterval(_NATIVE_HOVER_CHECK_MS)
+        self._native_check.timeout.connect(self._check_native_hover)
+        self.retranslate("ru")
+        self.sync_window_state()
 
-        minimize_button.clicked.connect(self.window().showMinimized)
-        maximize_button.clicked.connect(self.toggle_maximize)
-        close_button.clicked.connect(self.window().close)
+    def retranslate(self, language: str) -> None:
+        self._language = language
+        self.minimize_button.setToolTip(localize(language, "Свернуть", "Minimize"))
+        self.close_button.setToolTip(localize(language, "Закрыть", "Close"))
+        self.sync_window_state()
 
-        layout.addWidget(minimize_button)
-        layout.addWidget(maximize_button)
-        layout.addWidget(close_button)
-
-    def toggle_maximize(self):
-        """Переключает состояние окна между развернутым и нормальным."""
-        win = self.window()
-        if win.isMaximized():
-            win.showNormal()
+    def toggle_maximized(self) -> None:
+        if self._window.isMaximized():
+            self._window.showNormal()
         else:
-            win.showMaximized()
+            self._window.showMaximized()
 
-    def mousePressEvent(self, event):
-        """
-        Захватывает начальное смещение курсора для перетаскивания.
-        Вызывается только при клике на сам TitleBar, а не на кнопки.
-        """
+    def sync_window_state(self) -> None:
+        maximized = self._window.isMaximized()
+        self.maximize_button.set_glyph(GLYPH_RESTORE if maximized else GLYPH_MAXIMIZE)
+        self.maximize_button.setToolTip(
+            localize(self._language, "Свернуть в окно", "Restore down")
+            if maximized
+            else localize(self._language, "Развернуть", "Maximize")
+        )
+
+    def set_window_active(self, active: bool) -> None:
+        self.title.setProperty("inactive", not active)
+        style = self.title.style()
+        if style is not None:
+            style.unpolish(self.title)
+            style.polish(self.title)
+        for button in (self.minimize_button, self.maximize_button, self.close_button):
+            button.set_window_active(active)
+
+    def eventFilter(self, watched: QObject | None, event: QEvent | None) -> bool:
+        if watched is self._window and event is not None:
+            if event.type() == QEvent.Type.WindowStateChange:
+                self.sync_window_state()
+            elif event.type() == QEvent.Type.ActivationChange:
+                self.set_window_active(self._window.isActiveWindow())
+        return False
+
+    # --- Что под курсором: спрашивает frameless.py --------------------------
+
+    def is_control_at(self, point: QPoint) -> bool:
+        """Есть ли кнопка в точке `point` (в координатах полосы)."""
+        child = self.childAt(point)
+        while child is not None and child is not self:
+            if isinstance(child, QAbstractButton):
+                return True
+            child = child.parentWidget()
+        return False
+
+    def is_maximize_at(self, point: QPoint) -> bool:
+        return self.maximize_button.geometry().contains(point)
+
+    def set_maximize_native_state(self, *, hover: bool, pressed: bool = False) -> None:
+        """Подсветка «Развернуть», пока кнопкой управляет Windows (меню привязки)."""
+        self.maximize_button.set_native_state(hover=hover, pressed=pressed)
+        if hover or pressed:
+            self._native_check.start()
+        else:
+            self._native_check.stop()
+
+    def _check_native_hover(self) -> None:
+        if not self.is_maximize_at(self.mapFromGlobal(QCursor.pos())):
+            self.set_maximize_native_state(hover=False)
+
+    # --- Без Windows: перетаскивание силами Qt -------------------------------
+
+    def mousePressEvent(self, event) -> None:
+        handle = self._window.windowHandle()
+        if event.button() == Qt.MouseButton.LeftButton and handle is not None:
+            handle.startSystemMove()
+        super().mousePressEvent(event)
+
+    def mouseDoubleClickEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
-            # Рассчитываем смещение один раз при нажатии.
-            # Преобразуем QPoint в QPointF для корректного вычитания.
-            self.drag_position = event.globalPosition() - QPointF(
-                self.window().frameGeometry().topLeft()
-            )
-            event.accept()
-
-    def mouseMoveEvent(self, event):
-        """
-        Перемещает окно, используя предрассчитанное смещение.
-        Это самый легковесный и производительный способ.
-        """
-        if event.buttons() == Qt.MouseButton.LeftButton and self.drag_position is not None:
-            self.window().move((event.globalPosition() - self.drag_position).toPoint())
-            event.accept()
-
-    def mouseReleaseEvent(self, event):
-        """Сбрасывает позицию при отпускании кнопки мыши."""
-        self.drag_position = None
-        event.accept()
+            self.toggle_maximized()
+        super().mouseDoubleClickEvent(event)

@@ -16,6 +16,7 @@ import pytest
 pytest.importorskip("PyQt6", reason="PyQt6 не установлен")
 pytestmark = [pytest.mark.gui]
 
+from PyQt6.QtCore import Qt  # noqa: E402
 from PyQt6.QtGui import QCloseEvent  # noqa: E402
 from PyQt6.QtWidgets import QApplication  # noqa: E402
 
@@ -56,12 +57,7 @@ class FakeCore:
 
 
 @pytest.fixture
-def window(qapp, tmp_path, monkeypatch):
-    # Фоновая анимация не нужна и мешает детерминизму тестов.
-    monkeypatch.setattr(
-        "winspector.gui.widgets.neural_background.NeuralBackgroundWidget.start_animation",
-        lambda self: None,
-    )
+def window(qapp, tmp_path):
     core = FakeCore()
     win = MainWindow(core_instance=core, app_paths={"assets": tmp_path})
     win.core = core
@@ -82,6 +78,12 @@ class TestWindowSetup:
 
     def test_cancel_flag_starts_clear(self, window):
         assert window._cancel_requested is False
+
+    def test_gemini_button_opens_settings_section(self, window, monkeypatch):
+        opened = []
+        monkeypatch.setattr(window, "open_settings", opened.append)
+        window.ai_settings_button.click()
+        assert opened == [1]
 
 
 class TestCancellation:
@@ -117,6 +119,33 @@ class TestCancellation:
 
 
 class TestStateTransitions:
+    @pytest.mark.asyncio
+    async def test_full_run_and_restart(self, window, monkeypatch, tmp_path):
+        monkeypatch.setattr("winspector.gui.main_window.reports_path", lambda: tmp_path)
+        window.start_button.click()
+        await window.core.started.wait()
+        assert window.stacked_widget.currentWidget() is window.processing_page
+        assert not window.start_button.isEnabled()
+        assert not window.settings_button.isEnabled()
+        window.core.progress_callback(55, "Формирование плана")
+        assert window.stage_labels[2].property("stage") == "active"
+        assert window.stage_labels[1].property("stage") == "done"
+        task = window.optimization_task
+        window.core.release.set()
+        await task
+        assert window.stacked_widget.currentWidget() is window.results_page
+        assert list(tmp_path.glob("report-*.md"))
+
+        window.back_button.click()
+        assert window.stacked_widget.currentWidget() is window.home_page
+        window.core = FakeCore("## Второй отчёт")
+        window.start_button.click()
+        await window.core.started.wait()
+        task = window.optimization_task
+        window.core.release.set()
+        await task
+        assert "Второй отчёт" in window.report_view.plain_text()
+
     def test_finish_shows_the_report(self, window):
         window.is_optimizing = True
         window._on_optimization_finished("## Всё хорошо")
@@ -124,7 +153,7 @@ class TestStateTransitions:
         assert window.stacked_widget.currentWidget() is window.results_page
         assert window.is_optimizing is False
         assert window._cancel_requested is False
-        assert "Всё хорошо" in window.report_browser.toPlainText()
+        assert "Всё хорошо" in window.report_view.plain_text()
 
     def test_cancel_returns_home(self, window):
         window.is_optimizing = True
@@ -138,12 +167,8 @@ class TestStateTransitions:
         """Ожидаемая ошибка не должна выглядеть как падение программы."""
         shown: dict[str, Any] = {}
         monkeypatch.setattr(
-            "winspector.gui.main_window.QMessageBox.warning",
-            lambda *args, **kwargs: shown.update(kind="warning", text=args[2]),
-        )
-        monkeypatch.setattr(
-            "winspector.gui.main_window.QMessageBox.critical",
-            lambda *args, **kwargs: shown.update(kind="critical"),
+            "winspector.gui.message_dialog.notify",
+            lambda *args, **kwargs: shown.update(kind=kwargs["kind"], text=args[2]),
         )
 
         window._on_optimization_error(RestorePointError("защита системы отключена"))
@@ -154,20 +179,17 @@ class TestStateTransitions:
     def test_unexpected_error_is_shown_as_critical(self, window, monkeypatch):
         shown: dict[str, Any] = {}
         monkeypatch.setattr(
-            "winspector.gui.main_window.QMessageBox.warning",
-            lambda *args, **kwargs: shown.update(kind="warning"),
-        )
-        monkeypatch.setattr(
-            "winspector.gui.main_window.QMessageBox.critical",
-            lambda *args, **kwargs: shown.update(kind="critical"),
+            "winspector.gui.message_dialog.notify",
+            lambda *args, **kwargs: shown.update(kind=kwargs["kind"], text=args[2]),
         )
 
         window._on_optimization_error(ValueError("неожиданный сбой"))
 
-        assert shown["kind"] == "critical"
+        assert shown["kind"] == "error"
+        assert "неожиданный сбой" in shown["text"]
 
     def test_error_resets_state(self, window, monkeypatch):
-        monkeypatch.setattr("winspector.gui.main_window.QMessageBox.critical", lambda *a, **k: None)
+        monkeypatch.setattr("winspector.gui.message_dialog.notify", lambda *a, **k: None)
         window.is_optimizing = True
         window._on_optimization_error(ValueError("сбой"))
 
@@ -176,8 +198,49 @@ class TestStateTransitions:
 
     def test_progress_updates_widgets(self, window):
         window._update_progress(42, "Идёт очистка")
-        assert window.progress_bar.value() == 42
+        assert (window.progress_bar.minimum(), window.progress_bar.maximum()) == (0, 0)
+        assert window.stage_labels[1].property("stage") == "active"
         assert window.status_label.text() == "Идёт очистка"
+
+    def test_copy_report_uses_original_markdown(self, window):
+        window._on_optimization_finished("## Заголовок\n\n**Результат**")
+        copy_text = window.copy_button.text()
+        window.copy_button.click()
+        assert QApplication.clipboard().text() == "## Заголовок\n\n**Результат**"
+        # Кнопка коротко подтверждает копирование и возвращает прежнюю надпись.
+        assert window.copy_button.text() != copy_text
+        window._copied_timer.timeout.emit()
+        assert window.copy_button.text() == copy_text
+
+    def test_settings_button_is_round_and_keeps_no_mouse_focus(self, window):
+        # Мышью шестерёнка фокус не берёт: после закрытия настроек её
+        # подсветка не остаётся висеть.
+        assert window.settings_button.focusPolicy() == Qt.FocusPolicy.TabFocus
+        window.settings_button.ensurePolished()
+        assert window.settings_button.minimumSize() == window.settings_button.maximumSize()
+
+    def test_settings_button_hidden_while_optimizing(self, window):
+        window._show_page(window.processing_page)
+        assert window.settings_button.isHidden()
+        window._show_page(window.results_page)
+        assert not window.settings_button.isHidden()
+        window.go_to_home_page()
+        assert not window.settings_button.isHidden()
+
+    def test_settings_button_lives_in_title_bar(self, window):
+        assert window.windowFlags() & Qt.WindowType.FramelessWindowHint
+        assert window.title_bar.isAncestorOf(window.settings_button)
+        assert window.title_bar.isAncestorOf(window.update_notice)
+
+    def test_core_ellipsis_is_typographic(self, window):
+        window._update_progress(20, "Анализ вашего стиля работы...")
+        assert window.status_label.text() == "Анализ вашего стиля работы…"
+
+    def test_offline_status_is_neutral(self, window, monkeypatch):
+        monkeypatch.setattr("winspector.gui.main_window.credentials.has_api_key", lambda: False)
+        window._refresh_ai_status()
+        assert "Без ИИ" in window.ai_status_label.text()
+        assert window.ai_status_label.property("mode") == "offline"
 
 
 class TestCloseWhileBusy:

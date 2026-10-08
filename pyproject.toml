@@ -1,9 +1,9 @@
 [project]
 name = "winspector-pro"
-version = "1.0.4"
-description = "Оптимизатор Windows на базе генеративного ИИ"
+version = "1.1.0"
+description = "Open-source Windows 10/11 optimizer with AI-assisted personalization"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 license = { file = "LICENSE" }
 
 # Зависимости живут в requirements.in / requirements-dev.in и фиксируются
@@ -11,7 +11,7 @@ license = { file = "LICENSE" }
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py312"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
@@ -43,6 +43,9 @@ ignore = [
 # Виджеты написаны в компактном однострочном стиле до внедрения линтера.
 # Переписывать рабочую отрисовку ради косметики рискованнее, чем оставить как есть.
 "src/winspector/gui/**" = ["E701", "SIM108", "PTH100", "PTH118", "PTH120", "RUF012"]
+# Движок очистки работает со строками из `os.scandir` — оборачивать каждый
+# из десятков тысяч путей в `Path` ради одного вызова незачем.
+"src/winspector/core/modules/cleanup_engine.py" = ["PTH"]
 # Внутренний инструмент разработчика для наполнения базы знаний.
 # В поставку не входит, требования к стилю мягче.
 "scripts/researcher.py" = ["W293", "SIM102", "PTH"]

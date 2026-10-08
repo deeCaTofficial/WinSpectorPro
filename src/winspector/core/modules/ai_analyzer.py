@@ -164,7 +164,9 @@ ContentCreator. Otherwise set it to true.
             response_schema=PLAN_RESPONSE_SCHEMA,
             system_instruction=_SYSTEM_INSTRUCTION,
             temperature=0.1,
-            max_output_tokens=8192,
+            # Лимит включает размышления модели: при прежних 8192 рассуждения
+            # Gemini 3 могли оборвать план посередине.
+            max_output_tokens=32768,
             use_cache=False,
         )
 

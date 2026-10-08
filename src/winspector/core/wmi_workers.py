@@ -5,6 +5,11 @@
 Выполняются в отдельном процессе (см. `worker_pool`), поэтому написаны
 синхронно и возвращают ошибку значением, а не исключением.
 
+WMI опрашивается через `win32com` напрямую, без пакета `wmi`: тот не
+обновлялся с 2021 года, при импорте предупреждает о некорректных escape-
+последовательностях (в будущих версиях Python это станет ошибкой) и лишь
+оборачивает те же самые COM-вызовы, добавляя около трети ко времени запроса.
+
 Почему без потоков: WMI работает через COM, а COM-объект привязан к
 апартаменту создавшего его потока. Прежняя версия раскладывала запросы по
 `asyncio.to_thread`, и обращения из чужих потоков падали с
@@ -18,12 +23,25 @@ from __future__ import annotations
 import contextlib
 from typing import Any
 
-import wmi
-
 try:
     import pythoncom
+    import win32com.client
 except ImportError:  # окружения без pywin32
     pythoncom = None
+    win32com = None
+
+# Тот же моникер, что по умолчанию строил пакет `wmi`.
+_CIMV2_MONIKER = "winmgmts:{impersonationLevel=impersonate}!root/cimv2"
+
+
+class _WmiConnection:
+    """Минимальная обёртка над `SWbemServices`: только выполнение WQL."""
+
+    def __init__(self, services: Any) -> None:
+        self._services = services
+
+    def query(self, wql: str) -> list[Any]:
+        return list(self._services.ExecQuery(wql))
 
 
 def _init_com() -> None:
@@ -37,13 +55,20 @@ def _init_com() -> None:
 
 def _get_wmi_connection() -> Any | None:
     """Создаёт соединение с WMI. Возвращает None, если это не удалось."""
+    if win32com is None:
+        print("WMI connection failed in worker process: pywin32 is not installed")
+        return None
     _init_com()
     try:
-        # find_classes=False заметно ускоряет инициализацию.
-        return wmi.WMI(find_classes=False)
+        return _WmiConnection(win32com.client.GetObject(_CIMV2_MONIKER))
     except Exception as exc:
         print(f"WMI connection failed in worker process: {exc}")
         return None
+
+
+def _associators(obj: Any, result_class: str) -> list[Any]:
+    """Связанные объекты заданного класса (`SWbemObject.Associators_`)."""
+    return list(obj.Associators_(strResultClass=result_class))
 
 
 def _safe_query(wmi_con: Any, wql: str) -> list[Any]:
@@ -116,23 +141,21 @@ def _collect_partitions(disk: Any) -> list[dict[str, Any]]:
     """
     Связывает физический диск с логическими томами.
 
-    Используется метод `associators` самой библиотеки: он корректно строит
-    путь к объекту. Ручной WQL требовал экранирования `\\\\.\\PHYSICALDRIVE0`
-    и возвращал WBEM_E_NOT_FOUND. Важно и имя аргумента — `wmi_result_class`;
-    с прежним `wmi_class` вызов падал на TypeError, и разделы никогда не
-    попадали в отчёт.
+    Используется `Associators_` самого COM-объекта: он корректно строит путь.
+    Ручной WQL требовал экранирования `\\\\.\\PHYSICALDRIVE0` и возвращал
+    WBEM_E_NOT_FOUND.
     """
     partitions: list[dict[str, Any]] = []
 
     try:
-        associated = disk.associators(wmi_result_class="Win32_DiskPartition")
+        associated = _associators(disk, "Win32_DiskPartition")
     except Exception as exc:
         print(f"Disk partition lookup failed: {exc}")
         return partitions
 
     for part in associated:
         try:
-            logical_disks = part.associators(wmi_result_class="Win32_LogicalDisk")
+            logical_disks = _associators(part, "Win32_LogicalDisk")
         except Exception:
             continue
         for logical in logical_disks:
@@ -158,42 +181,6 @@ def get_hardware_info_worker() -> dict[str, Any]:
         return _collect_hardware(wmi_con)
     except Exception as exc:
         return {"error": f"Hardware collection failed: {exc}"}
-
-
-def get_services_worker() -> dict[str, Any]:
-    """
-    Точка входа воркера: службы, доступные для оптимизации.
-
-    Системные службы из System32 и хосты svchost исключаются: их изменение
-    рискованно, а объём данных для модели заметно вырастает.
-    """
-    wmi_con = _get_wmi_connection()
-    if wmi_con is None:
-        return {"error": "WMI connection failed."}
-
-    try:
-        rows = wmi_con.query(
-            "SELECT Name, DisplayName, State, StartMode, PathName "
-            "FROM Win32_Service WHERE StartMode != 'Disabled'"
-        )
-    except Exception as exc:
-        return {"error": str(exc)}
-
-    services: list[dict[str, Any]] = []
-    for service in rows:
-        path = service.PathName
-        if path and ("system32" in path.lower() or "svchost" in path.lower()):
-            continue
-        services.append(
-            {
-                "name": service.Name,
-                "display_name": service.DisplayName,
-                "state": service.State,
-                "start_mode": service.StartMode,
-                "path": path,
-            }
-        )
-    return {"services": services}
 
 
 def get_running_processes_worker() -> dict[str, Any]:

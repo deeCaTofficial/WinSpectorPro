@@ -11,16 +11,20 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Версия, на которой ведётся разработка: линтер и сборка используют её.
+  PRIMARY_PYTHON: "3.14"
+
 jobs:
   lint:
     name: Линтер
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          python-version: ${{ env.PRIMARY_PYTHON }}
           cache: pip
 
       - name: Установка ruff
@@ -29,6 +33,9 @@ jobs:
       - name: ruff check
         run: ruff check src/ scripts/ tests/
 
+      - name: ruff format
+        run: ruff format --check src/ scripts/ tests/
+
   test:
     name: Тесты (Python ${{ matrix.python-version }})
     runs-on: windows-latest
@@ -36,12 +43,12 @@ jobs:
       fail-fast: false
       matrix:
         # Нижняя граница из pyproject и актуальная версия.
-        python-version: ["3.10", "3.12", "3.13"]
+        python-version: ["3.12", "3.13", "3.14"]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -57,8 +64,8 @@ jobs:
         run: pytest tests/ --cov --cov-report=xml --cov-report=term
 
       - name: Публикация отчёта о покрытии
-        if: matrix.python-version == '3.12'
-        uses: actions/upload-artifact@v4
+        if: matrix.python-version == '3.14'
+        uses: actions/upload-artifact@v7
         with:
           name: coverage
           path: coverage.xml
@@ -71,11 +78,11 @@ jobs:
     if: github.event_name == 'push'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          python-version: ${{ env.PRIMARY_PYTHON }}
           cache: pip
           cache-dependency-path: requirements-dev.txt
 
@@ -85,8 +92,11 @@ jobs:
       - name: Сборка исполняемого файла
         run: python scripts/build.py
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: WinSpectorPro-dist
-          path: dist/WinSpectorPro.exe
+          # EXE и его контрольная сумма: хеш публикуется в описании релиза.
+          path: |
+            dist/WinSpectorPro.exe
+            dist/WinSpectorPro.exe.sha256
           if-no-files-found: error

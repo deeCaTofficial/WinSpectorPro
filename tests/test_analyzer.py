@@ -68,7 +68,7 @@ class Recorder:
             steps.append("components")
             return {"services": [], "uwp_apps": []}
 
-        async def junk():
+        async def junk(*_args, **_kwargs):
             steps.append("scan_junk")
             return {
                 "browser_cache": {"total_size": 100, "files_to_delete": [], "folders_to_clean": []}
@@ -91,23 +91,38 @@ class Recorder:
 
         async def standard_cleanup():
             steps.append("standard_cleanup")
-            return {"cleaned_size_bytes": 1000, "deleted_files_count": 5, "errors": 0}
+            return {
+                "cleaned_size_bytes": 1000,
+                "deleted_files_count": 5,
+                "skipped_files_count": 3,
+                "skipped_size_bytes": 300,
+                "errors": 0,
+            }
 
         async def deep_cleanup(decisions, report):
             steps.append("deep_cleanup")
             self.deep_cleanup_args = (decisions, report)
-            return {"cleaned_size_bytes": 500, "deleted_files_count": 2, "errors": 0}
+            return {
+                "cleaned_size_bytes": 500,
+                "deleted_files_count": 2,
+                "deleted_folders_count": 4,
+                "skipped_files_count": 1,
+                "skipped_size_bytes": 50,
+                "skipped_categories": {"edge_cache": "запущено: msedge.exe"},
+                "errors": 0,
+            }
 
-        async def empty_folders():
+        async def empty_folders(extra_paths=None, app_dirs=None):
             steps.append("empty_folders")
-            return {"deleted_folders_count": 1, "errors": 0}
+            self.empty_app_dirs = list(app_dirs or [])
+            return {"deleted_folders_count": 1, "errors": 0, "app_dirs_removed": []}
 
         async def execute_plan(action_plan, progress=None):
             steps.append("execute_plan")
             self.executed_plan = action_plan
             return {"completed": list(action_plan), "failed": [], "skipped": []}
 
-        async def report(summary, plan_items, profiles):
+        async def report(summary, plan_items, profiles, language="ru"):
             steps.append("report")
             self.report_summary = summary
             return "## Отчёт"
@@ -256,7 +271,14 @@ class TestFullRun:
         await core.run_autonomous_optimization()
         await core.shutdown()
 
-        assert recorder.report_summary["cleanup"]["cleaned_size_bytes"] == 1500
+        cleanup = recorder.report_summary["cleanup"]
+        assert cleanup["cleaned_size_bytes"] == 1500
+        assert cleanup["deleted_files_count"] == 7
+        assert cleanup["deleted_folders_count"] == 4
+        # Пропущенное не смешивается с освобождённым, а суммируется отдельно.
+        assert cleanup["skipped_files_count"] == 4
+        assert cleanup["skipped_size_bytes"] == 350
+        assert cleanup["skipped_categories"] == {"edge_cache": "запущено: msedge.exe"}
 
     async def test_progress_is_monotonic_and_bounded(self, core, monkeypatch):
         recorder = Recorder()
@@ -329,7 +351,7 @@ class TestComponentCache:
             calls["n"] += 1
             return {"services": [], "uwp_apps": []}
 
-        async def junk():
+        async def junk(*_args, **_kwargs):
             return {}
 
         monkeypatch.setattr(core.windows_optimizer, "get_system_components", components)
@@ -350,7 +372,7 @@ class TestComponentCache:
             calls["n"] += 1
             return {"services": [], "uwp_apps": []}
 
-        async def junk():
+        async def junk(*_args, **_kwargs):
             return {}
 
         monkeypatch.setattr(core.windows_optimizer, "get_system_components", components)
@@ -362,6 +384,101 @@ class TestComponentCache:
         await core._step_collect_data(session, lambda v, t: None)
 
         assert calls["n"] == 2
+
+
+class TestLeftovers:
+    """Остатки удалённых программ уходят в карантин, а не удаляются."""
+
+    @staticmethod
+    def _report(*candidates):
+        from winspector.core.modules import leftover_scanner as ls
+
+        report = ls.LeftoverReport()
+        report.candidates.extend(candidates)
+        return report
+
+    async def test_high_candidates_are_quarantined_and_reported(self, core, tmp_path):
+        from winspector.core.modules import leftover_scanner as ls
+
+        gone = tmp_path / "Roaming" / "GoneApp"
+        gone.mkdir(parents=True)
+        (gone / "settings.ini").write_text("x")
+        kept = tmp_path / "Roaming" / "Portable"
+        kept.mkdir()
+        (kept / "app.exe").write_bytes(b"MZ")
+
+        report = self._report(
+            ls.LeftoverCandidate(str(gone), "appdata", "GoneApp", "high", ["улика"], 1, 1),
+            ls.LeftoverCandidate(
+                str(kept), "appdata", "Portable", "low", ["улика"], 2, 1, kept_reason="exe"
+            ),
+        )
+        session = {"leftovers_report": report}
+
+        summary = await core._quarantine_leftovers(session)
+
+        assert summary["quarantined_count"] == 1
+        assert summary["kept_count"] == 1
+        assert not gone.exists(), "остаток перенесён"
+        assert (kept / "app.exe").exists(), "кандидат без уверенности не тронут"
+        stored = Path(summary["batch_dir"])
+        assert stored.is_dir() and (stored / "manifest.json").is_file()
+        assert summary["items"][0]["original"] == str(gone)
+
+    async def test_no_report_means_nothing_happens(self, core):
+        summary = await core._quarantine_leftovers({})
+        assert summary["quarantined_count"] == 0
+        assert summary["batch_dir"] == ""
+
+    async def test_leftovers_can_be_disabled_by_config(self, kb_dir, monkeypatch):
+        monkeypatch.setattr(
+            "winspector.core.analyzer.AIBase.has_api_key", staticmethod(lambda: True)
+        )
+        # Автофикстура подменяет `_scan_leftovers`; здесь нужен настоящий метод.
+        monkeypatch.undo()
+        core = WinSpectorCore({"kb_path": kb_dir, "app_config": {}, "leftovers": False})
+        report = await core._scan_leftovers()
+        assert report.candidates == [] and report.evidence == []
+
+    async def test_final_summary_carries_leftovers(self, core, monkeypatch):
+        recorder = Recorder()
+        recorder.wire(core, monkeypatch)
+
+        async def fake_quarantine(session):
+            return {"quarantined_count": 2, "quarantined_size_bytes": 512, "batch_dir": "Q"}
+
+        monkeypatch.setattr(core, "_quarantine_leftovers", fake_quarantine)
+
+        await core.run_autonomous_optimization()
+        await core.shutdown()
+
+        assert recorder.report_summary["leftovers"]["quarantined_count"] == 2
+
+    async def test_only_removable_empty_dirs_reach_the_final_pass(self, core, monkeypatch):
+        """Пустые каталоги программ удаляет последний проход, после файлов и карантина."""
+        from winspector.core.modules import leftover_scanner as ls
+
+        recorder = Recorder()
+        recorder.wire(core, monkeypatch)
+        report = ls.LeftoverReport(
+            empty_dirs=[
+                ls.EmptyAppDir(r"C:\Program Files\Gone", "program_files", 1, 0.0),
+                ls.EmptyAppDir(
+                    r"C:\ProgramData\Fresh", "programdata", 1, 0.0, kept_reason="свежий"
+                ),
+            ]
+        )
+
+        async def scan():
+            return report
+
+        monkeypatch.setattr(core, "_scan_leftovers", scan)
+
+        await core.run_autonomous_optimization()
+        await core.shutdown()
+
+        assert recorder.empty_app_dirs == [r"C:\Program Files\Gone"]
+        assert recorder.steps.index("deep_cleanup") < recorder.steps.index("empty_folders")
 
 
 class TestShutdown:

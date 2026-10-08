@@ -1,11 +1,14 @@
 # Основные зависимости WinSpector Pro.
 # Это файл требований верхнего уровня; requirements.txt генерируется командой
 #   pip-compile requirements.in
-PyQt6>=6.6
-qasync>=0.27
-psutil>=5.9
-pywin32>=306
-wmi>=1.5.1
-google-genai>=1.0
-pyyaml>=6.0
-python-dotenv>=1.0
+#
+# Нижние границы отражают минимум, на котором проект проверен под Python 3.14:
+# у более старых PyQt6/pywin32 просто нет колёс для cp314.
+PyQt6>=6.11
+qasync>=0.28
+psutil>=7.0
+pywin32>=312
+google-genai>=2.22
+httpx>=0.28.1
+pyyaml>=6.0.3
+python-dotenv>=1.2

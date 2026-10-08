@@ -26,7 +26,7 @@ try:
     from dotenv import load_dotenv
     from PyQt6.QtCore import QSharedMemory
     from PyQt6.QtGui import QIcon
-    from PyQt6.QtWidgets import QApplication, QMessageBox
+    from PyQt6.QtWidgets import QApplication
 except ImportError as e:
     error_msg = (
         f"КРИТИЧЕСКАЯ ОШИБКА: Не найдены основные зависимости: {e}\n\n"
@@ -61,10 +61,10 @@ _load_environment()
 # Импорты пакета намеренно идут после _load_environment(): модули ядра
 # читают переменные окружения уже на этапе импорта.
 from src.winspector import APP_ID, APP_NAME, APP_VERSION  # noqa: E402
-from src.winspector.core import WinSpectorCore  # noqa: E402
+from src.winspector.core import WinSpectorCore, credentials  # noqa: E402
 from src.winspector.core.exceptions import WinSpectorError  # noqa: E402
-from src.winspector.gui import MainWindow  # noqa: E402
-from src.winspector.gui.api_key_dialog import ensure_api_key_configured  # noqa: E402
+from src.winspector.gui import MainWindow, message_dialog, theme  # noqa: E402
+from src.winspector.gui.language import get_language, localize  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -101,17 +101,27 @@ class Application:
         self.q_app = QApplication(sys.argv)
 
         if not self._check_single_instance():
-            QMessageBox.warning(None, "Приложение уже запущено", f"{APP_NAME} уже работает.")
+            language = get_language()
+            self._apply_styles()
+            message_dialog.notify(
+                None,
+                localize(language, "Приложение уже запущено", "Application already running"),
+                localize(
+                    language,
+                    f"{APP_NAME} уже открыт — окно можно найти на панели задач.",
+                    f"{APP_NAME} is already open — find its window on the taskbar.",
+                ),
+                language=language,
+            )
             return False
 
         self._apply_styles()
         self._set_app_icon()
         self._set_app_user_model_id()
 
-        # Ключ запрашивается до создания ядра и до любых действий с системой.
-        # Отказ от ИИ — допустимый выбор, а не ошибка: приложение продолжит
-        # работать по встроенной базе знаний.
-        self.ai_enabled = ensure_api_key_configured()
+        # Настройка Gemini находится в главном окне. При отсутствии ключа
+        # приложение сразу открывается в режиме встроенной базы знаний.
+        self.ai_enabled = credentials.has_api_key()
 
         if not self._initialize_core():
             return False
@@ -188,10 +198,17 @@ class Application:
         logger.critical("Перехвачено необработанное исключение:", exc_info=(exc_type, exc, tb))
 
         if self.q_app and not self.q_app.property("is_shutting_down"):
-            QMessageBox.critical(
+            language = get_language()
+            message_dialog.notify(
                 None,
-                "Критическая ошибка",
-                f"Произошла непредвиденная ошибка: {exc}\n\nПодробности в файле winspector.log.",
+                localize(language, "Непредвиденная ошибка", "Unexpected error"),
+                localize(
+                    language,
+                    f"{exc}\n\nПодробности записаны в winspector.log.",
+                    f"{exc}\n\nDetails were written to winspector.log.",
+                ),
+                kind="error",
+                language=language,
             )
         else:
             emergency_message_box(
@@ -218,16 +235,12 @@ class Application:
         return True
 
     def _apply_styles(self):
-        qss_path = self.app_paths.get("base") / "winspector" / "resources" / "styles" / "main.qss"
-        if qss_path.exists():
-            try:
-                with qss_path.open(encoding="utf-8") as f:
-                    self.q_app.setStyleSheet(f.read())
-                logger.info("Таблица стилей успешно загружена и применена.")
-            except Exception as e:
-                logger.error(f"Не удалось загрузить таблицу стилей: {e}")
-        else:
-            logger.warning(f"Файл стилей не найден: {qss_path}")
+        try:
+            theme.apply(self.q_app, base=self.app_paths.get("base"))
+            logger.info("Оформление применено.")
+        except OSError as e:
+            # Без таблицы стилей окно остаётся рабочим, только системного вида.
+            logger.error(f"Не удалось загрузить таблицу стилей: {e}")
 
     def _set_app_icon(self):
         icon_path = self.app_paths.get("assets") / "app.ico"
@@ -258,8 +271,11 @@ class Application:
         core_config = {
             "kb_path": self.app_paths.get("kb_path"),
             "force_offline": not self.ai_enabled,
+            "language": get_language(),
+            # Модель не задаётся здесь: `GEMINI_MODEL` или модель по умолчанию
+            # выбирает `ai_base.configured_model()` — та же, что проверяет
+            # окно настройки ключа.
             "app_config": {
-                "ai_model": os.getenv("GEMINI_MODEL") or "gemini-2.5-flash",
                 "ai_request_timeout": 120,
                 "ai_cache_ttl": 3600,
             },
@@ -269,10 +285,11 @@ class Application:
             return True
         except WinSpectorError as e:
             logger.critical("Не удалось инициализировать ядро: %s", e, exc_info=True)
-            QMessageBox.critical(
+            message_dialog.notify(
                 None,
-                "Ошибка запуска",
-                f"Не удалось подготовить приложение к работе.\n\n{e}",
+                localize(get_language(), "Не удалось запустить приложение", "Could not start"),
+                str(e),
+                kind="error",
             )
             return False
 
@@ -281,9 +298,11 @@ class Application:
         self.main_window = MainWindow(core_instance=self.core_instance, app_paths=self.app_paths)
 
     def _setup_async_loop(self) -> qasync.QEventLoop:
-        if sys.platform == "win32":
-            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
+        # Политика цикла событий здесь не задаётся. Во-первых, начиная с
+        # Python 3.14 `set_event_loop_policy` и `WindowsSelectorEventLoopPolicy`
+        # объявлены устаревшими и исчезнут в 3.16. Во-вторых, они всё равно ни
+        # на что не влияли: на Windows `qasync.QEventLoop` — это всегда цикл
+        # поверх IOCP, а созданный объект сразу назначается текущим вручную.
         loop = qasync.QEventLoop(self.q_app)
         asyncio.set_event_loop(loop)
         return loop

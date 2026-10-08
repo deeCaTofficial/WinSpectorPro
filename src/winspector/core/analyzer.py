@@ -27,8 +27,11 @@ from .modules import (
     SmartCleaner,
     UserProfiler,
     WindowsOptimizer,
+    leftover_scanner,
+    quarantine,
 )
 from .modules.plan_validator import PlanValidator, normalize_profiles
+from .report_data import ReportData
 from .worker_pool import WorkerPool
 
 logger = logging.getLogger(__name__)
@@ -46,6 +49,27 @@ _OFFLINE_HINT = (
     "компьютер, укажите бесплатный ключ Gemini в настройках приложения."
 )
 
+# Ключ задан, но ИИ не ответил. Просить «указать ключ» здесь нельзя: человек
+# его уже указал и не поймёт, что пошло не так.
+_AI_FAILED_HINT = (
+    "\n\n---\n"
+    "ℹ️ ИИ в этот раз не ответил, поэтому оптимизация выполнена **без ИИ** — "
+    "по встроенной базе знаний, осторожно и одинаково для всех.\n\n"
+    "Причина записана в журнал `logs\\winspector.log` рядом с программой. "
+    "Проверить ключ можно в разделе Gemini настроек."
+)
+
+_OFFLINE_HINT_EN = (
+    "\n\n---\nℹ️ Optimization ran **without AI** using the built-in knowledge base. "
+    "Changes were selected conservatively.\n\n"
+    "For a personalized plan, add a Gemini API key in Settings."
+)
+_AI_FAILED_HINT_EN = (
+    "\n\n---\nℹ️ Gemini did not respond this time, so optimization ran **without AI** "
+    "using the built-in knowledge base.\n\n"
+    "The reason is recorded in `logs\\winspector.log`. Check your key in Settings → Gemini."
+)
+
 
 class OptimizationSessionData(TypedDict, total=False):
     """Данные, накапливаемые в ходе одной сессии оптимизации."""
@@ -60,9 +84,20 @@ class OptimizationSessionData(TypedDict, total=False):
     standard_cleanup_summary: dict[str, Any]
     ai_cleanup_summary: dict[str, Any]
     empty_folders_summary: dict[str, Any]
+    leftovers_report: leftover_scanner.LeftoverReport
+    leftovers_summary: dict[str, Any]
     final_summary: dict[str, Any]
     final_report: str
     ai_enabled: bool
+
+
+def _service_display_names(components: dict[str, Any] | None) -> dict[str, str]:
+    """Названия служб для отчёта по имени службы в нижнем регистре."""
+    names: dict[str, str] = {}
+    for service in (components or {}).get("services") or []:
+        if isinstance(service, dict) and service.get("name") and service.get("display_name"):
+            names[str(service["name"]).lower()] = str(service["display_name"])
+    return names
 
 
 class WinSpectorCore:
@@ -75,6 +110,7 @@ class WinSpectorCore:
     def __init__(self, config: dict[str, Any]) -> None:
         logger.info("Инициализация ядра WinSpectorCore...")
         self.config = config
+        self.report_language: str = config.get("language", "ru")
 
         # `force_offline` выставляется, когда пользователь сознательно выбрал
         # работу без ИИ. `ai_enabled` — фактический режим текущего запуска:
@@ -90,14 +126,13 @@ class WinSpectorCore:
             len(self.knowledge_base.get("cleanup_rules", [])),
         )
 
-        # Один пул процессов на всё ядро: WMI-воркеры переиспользуют его,
-        # а закрывается он централизованно в `shutdown`.
+        # Пул процессов нужен только WMI-запросу об оборудовании (COM живёт
+        # в отдельном процессе); закрывается он централизованно в `shutdown`.
         self.worker_pool = WorkerPool(max_workers=1)
 
         self.user_profiler = UserProfiler(worker_pool=self.worker_pool)
         self.windows_optimizer = WindowsOptimizer(
             optimization_rules=self.knowledge_base.get("optimization_rules", []),
-            worker_pool=self.worker_pool,
         )
         self.smart_cleaner = SmartCleaner(
             cleanup_rules=self.knowledge_base.get("cleanup_rules", [])
@@ -108,6 +143,9 @@ class WinSpectorCore:
         self._last_scan_time: datetime | None = None
         self._cached_system_components: dict[str, Any] | None = None
         self.background_tasks: set[asyncio.Task[Any]] = set()
+        # Итог последнего запуска по полям — для окна отчёта; Markdown-версию
+        # возвращает `run_autonomous_optimization`.
+        self.last_report: ReportData | None = None
 
         logger.info("Все модули ядра инициализированы.")
 
@@ -218,6 +256,7 @@ class WinSpectorCore:
         # создания точки восстановления и полного сканирования.
         self.ai_enabled = self._detect_ai_mode()
         session["ai_enabled"] = self.ai_enabled
+        self.last_report = None
 
         try:
             await self._step_create_restore_point(progress)
@@ -309,14 +348,35 @@ class WinSpectorCore:
         components_task = (
             self._cached_components_task() or self.windows_optimizer.get_system_components()
         )
-        components, junk_files = await asyncio.gather(
-            components_task, self.smart_cleaner.find_junk_files_deep()
+        components, junk_files, leftovers = await asyncio.gather(
+            components_task,
+            # Без ИИ очищаются только категории `high`: остальные не сканируются.
+            self.smart_cleaner.find_junk_files_deep(None if self.ai_enabled else {"high"}),
+            self._scan_leftovers(),
         )
 
         self._cached_system_components = components
         self._last_scan_time = datetime.now()
+        session["leftovers_report"] = leftovers
         session["system_components"] = components
         session["junk_files_report"] = junk_files
+
+    async def _scan_leftovers(self) -> leftover_scanner.LeftoverReport:
+        """
+        Ищет остатки удалённых программ. Только чтение.
+
+        Сбой сканера не должен срывать оптимизацию: остатки — дополнительная
+        возможность, а не обязательный шаг.
+        """
+        if not self.config.get("leftovers", True):
+            return leftover_scanner.LeftoverReport()
+        try:
+            return await asyncio.to_thread(
+                leftover_scanner.scan_leftovers, is_safe=self.smart_cleaner.is_safe_to_delete
+            )
+        except Exception:
+            logger.exception("Поиск остатков удалённых программ не удался.")
+            return leftover_scanner.LeftoverReport()
 
     def _cached_components_task(self) -> Any | None:
         """Возвращает готовый результат из кеша, если он ещё не устарел."""
@@ -379,9 +439,65 @@ class WinSpectorCore:
             session.get("ai_plan", {}).get("cleanup_plan", {}),
             session.get("junk_files_report", {}),
         )
-        session[
-            "empty_folders_summary"
-        ] = await self.smart_cleaner.cleanup_all_empty_folders_async()
+        # Остатки — после удаления файлов и до прохода по пустым каталогам:
+        # каталог целиком уходит в карантин, а не удаляется.
+        session["leftovers_summary"] = await self._quarantine_leftovers(session)
+        report = session.get("leftovers_report") or leftover_scanner.LeftoverReport()
+        session["empty_folders_summary"] = await self.smart_cleaner.cleanup_all_empty_folders_async(
+            app_dirs=[item.path for item in report.removable_empty_dirs]
+        )
+
+    async def _quarantine_leftovers(self, session: OptimizationSessionData) -> dict[str, Any]:
+        """
+        Переносит остатки удалённых программ в карантин.
+
+        Только кандидаты с уликой и прошедшие все проверки (`confidence ==
+        "high"`). Решение принимает код, а не ИИ: модель не может проверить
+        файловую систему, а ошибка здесь стоит пользовательских данных.
+        """
+        report = session.get("leftovers_report") or leftover_scanner.LeftoverReport()
+        summary: dict[str, Any] = {
+            "quarantined_count": 0,
+            "quarantined_size_bytes": 0,
+            "batch_dir": "",
+            "items": [],
+            "skipped": {},
+            "kept_count": sum(1 for c in report.candidates if c.confidence != "high"),
+            "purged_batches": 0,
+        }
+        try:
+            summary["purged_batches"] = await asyncio.to_thread(quarantine.purge_expired)
+        except Exception:
+            logger.exception("Не удалось очистить просроченный карантин.")
+
+        targets = [
+            (
+                Path(candidate.path),
+                candidate.size_bytes,
+                candidate.evidence[0],
+                candidate.prune_parent,
+            )
+            for candidate in report.actionable
+            if candidate.evidence
+        ]
+        if not targets:
+            return summary
+
+        logger.info("Остатки удалённых программ: %d каталогов уходят в карантин.", len(targets))
+        try:
+            result = await asyncio.to_thread(quarantine.quarantine_paths, targets)
+        except Exception:
+            logger.exception("Карантин остатков не удался.")
+            return summary
+
+        summary.update(
+            quarantined_count=len(result.items),
+            quarantined_size_bytes=result.moved_bytes,
+            batch_dir=result.batch_dir,
+            items=[{"original": i.original, "reason": i.reason} for i in result.items],
+            skipped=dict(result.skipped),
+        )
+        return summary
 
     async def _step_execute_action_plan(
         self, session: OptimizationSessionData, progress: ProgressCallback
@@ -396,24 +512,68 @@ class WinSpectorCore:
     ) -> None:
         progress(95, "Формирование отчёта...")
 
-        cleaned_bytes = sum(
-            session.get(key, {}).get("cleaned_size_bytes", 0)
-            for key in ("standard_cleanup_summary", "ai_cleanup_summary")
-        )
+        # Итог очистки складывается из стандартной и глубокой. В отчёт идут
+        # только реально удалённые байты; пропущенное (занятые и свежие
+        # файлы, категории работающих программ) показывается отдельно.
+        cleanup_parts = [
+            session.get(key) or {} for key in ("standard_cleanup_summary", "ai_cleanup_summary")
+        ]
+        cleanup: dict[str, Any] = {
+            key: sum(int(part.get(key, 0) or 0) for part in cleanup_parts)
+            for key in (
+                "cleaned_size_bytes",
+                "deleted_files_count",
+                "deleted_folders_count",
+                "skipped_files_count",
+                "skipped_size_bytes",
+                "errors",
+            )
+        }
+        cleanup["skipped_categories"] = {
+            category: reason
+            for part in cleanup_parts
+            for category, reason in (part.get("skipped_categories") or {}).items()
+        }
+        cleanup["deferred"] = [
+            item for part in cleanup_parts for item in part.get("deferred") or []
+        ]
         session["final_summary"] = {
             "debloat": session.get("debloat_summary", {}),
-            "cleanup": {"cleaned_size_bytes": cleaned_bytes},
+            "cleanup": cleanup,
             "empty_folders": session.get("empty_folders_summary", {}),
+            "leftovers": session.get("leftovers_summary", {}),
         }
+        offline_report = AICommunicator.build_offline_report(
+            session["final_summary"], language=self.report_language
+        )
+        ai_text = ""
         if self.ai_enabled:
             session["final_report"] = await self.ai_communicator.generate_final_report(
                 session["final_summary"],
                 session.get("ai_plan", {}).get("action_plan", []),
                 session.get("user_profile", []),
+                language=self.report_language,
             )
+            # При сбое Gemini возвращается тот же локальный отчёт.
+            if session["final_report"] != offline_report:
+                ai_text = session["final_report"]
         else:
-            report = AICommunicator.build_offline_report(session["final_summary"])
-            session["final_report"] = report + _OFFLINE_HINT
+            # Без `force_offline` и с ключом запуск начинался с ИИ — значит,
+            # в режим без ИИ он перешёл из-за сбоя, а не по выбору человека.
+            ai_failed = not self.force_offline and AIBase.has_api_key()
+            if self.report_language == "en":
+                hint = _AI_FAILED_HINT_EN if ai_failed else _OFFLINE_HINT_EN
+            else:
+                hint = _AI_FAILED_HINT if ai_failed else _OFFLINE_HINT
+            session["final_report"] = offline_report + hint
+        self.last_report = ReportData.from_summary(
+            session["final_summary"],
+            language=self.report_language,
+            ai_used=bool(ai_text),
+            ai_failed=not ai_text and not self.force_offline and AIBase.has_api_key(),
+            ai_text=ai_text,
+            display_names=_service_display_names(session.get("system_components")),
+        )
 
         progress(100, "Готово!")
 

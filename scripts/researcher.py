@@ -47,13 +47,16 @@ logger = logging.getLogger("ResearcherV3_Final")
 try:
     import ctypes
 
-    import google.generativeai as genai
     import psutil
     import win32api  # Для получения метаданных файла
     import yaml
     from dotenv import load_dotenv
+    from google import genai
+    from google.genai import types as genai_types
 
     from src.winspector.core.modules import UserProfiler, WindowsOptimizer
+    from src.winspector.core.modules.ai_base import configured_model, is_legacy_model
+    from src.winspector.core.worker_pool import WorkerPool
 except ImportError as e:
     logger.error(f"Критическая ошибка: не удалось импортировать модули. {e}")
     logger.error(
@@ -61,10 +64,12 @@ except ImportError as e:
     )
     sys.exit(1)
 CONFIG = {
-    "AI_MODEL": "gemini-2.5-flash-preview-05-20",
     "OUTPUT_PATH": PROJECT_ROOT / "tests" / "upload",
     "REQUEST_TIMEOUT": 600,
-    "MAX_OUTPUT_TOKENS": 4194304,
+    # Потолок вывода Gemini Flash (2.5 и 3.8). Прежнее значение (4194304)
+    # превышало его на два порядка: запрос отклонялся ещё до обращения к модели.
+    # Модель — та же, что у приложения: `GEMINI_MODEL` или модель по умолчанию.
+    "MAX_OUTPUT_TOKENS": 65536,
     "VERIFICATION_BATCH_SIZE": 10,
     "CRITICAL_COMPONENTS_GUARDRAIL": {
         "services": ["Winmgmt", "RpcSs", "DcomLaunch", "PlugPlay"],
@@ -78,16 +83,15 @@ class ResearcherV3_Final:
     def __init__(self):
         load_dotenv(PROJECT_ROOT / ".env")
         CONFIG["OUTPUT_PATH"].mkdir(exist_ok=True)
-        self.model = self._initialize_ai()
+        self.client = self._initialize_ai()
         self.system_data_cache: dict[str, Any] | None = None
 
-    def _initialize_ai(self) -> genai.GenerativeModel:
+    def _initialize_ai(self) -> genai.Client:
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             raise ValueError("API-ключ 'GEMINI_API_KEY' не найден.")
-        genai.configure(api_key=api_key)
-        logger.info(f"Инициализирован ИИ с моделью: {CONFIG['AI_MODEL']}")
-        return genai.GenerativeModel(CONFIG["AI_MODEL"])
+        logger.info(f"Инициализирован ИИ с моделью: {configured_model()}")
+        return genai.Client(api_key=api_key)
 
     def _get_file_metadata(self, path: str) -> dict[str, str] | None:
         try:
@@ -255,7 +259,10 @@ class ResearcherV3_Final:
         if self.system_data_cache:
             return self.system_data_cache
         logger.info("Начало полного сбора системных данных (ResearcherV3_Final)...")
-        profiler = UserProfiler(profiler_config={})
+        # Профилировщику нужен пул процессов для WMI-запроса об оборудовании;
+        # прежний аргумент `profiler_config` в ядре давно не существует.
+        worker_pool = WorkerPool(max_workers=1)
+        profiler = UserProfiler(worker_pool=worker_pool)
         optimizer = WindowsOptimizer()
         profile_task = profiler.get_system_profile()
         components_task = optimizer.get_system_components()
@@ -269,9 +276,12 @@ class ResearcherV3_Final:
         if steam_path:
             known_paths["steam_install_path"] = steam_path
             logger.info(f"Найден путь установки Steam: {steam_path}")
-        profile, components, dynamic = await asyncio.gather(
-            profile_task, components_task, dynamic_task
-        )
+        try:
+            profile, components, dynamic = await asyncio.gather(
+                profile_task, components_task, dynamic_task
+            )
+        finally:
+            await worker_pool.shutdown()
         self.system_data_cache = {
             "profile": profile,
             "components": components,
@@ -286,15 +296,19 @@ class ResearcherV3_Final:
 
     async def _generate_from_prompt(self, prompt: str, task_name: str) -> dict:
         logger.info(f"Отправка запроса ИИ для задачи: '{task_name}'...")
-        generation_config = genai.types.GenerationConfig(
-            max_output_tokens=CONFIG["MAX_OUTPUT_TOKENS"], temperature=0.2
+        generation_config = genai_types.GenerateContentConfig(
+            max_output_tokens=CONFIG["MAX_OUTPUT_TOKENS"],
+            # Gemini 3 Google советует не снижать температуру: модель может зацикливаться.
+            temperature=0.2 if is_legacy_model(configured_model()) else None,
+            # `HttpOptions.timeout` задаётся в миллисекундах, в отличие от
+            # `request_options` снятого с поддержки google-generativeai.
+            http_options=genai_types.HttpOptions(timeout=CONFIG["REQUEST_TIMEOUT"] * 1000),
         )
-        request_options = {"timeout": CONFIG["REQUEST_TIMEOUT"]}
         try:
-            response = await self.model.generate_content_async(
-                prompt, generation_config=generation_config, request_options=request_options
+            response = await self.client.aio.models.generate_content(
+                model=configured_model(), contents=prompt, config=generation_config
             )
-            return self._parse_and_restore_json(response.text, task_name)
+            return self._parse_and_restore_json(response.text or "", task_name)
         except Exception as e:
             logger.critical(
                 f"Критическая ошибка API при запросе для '{task_name}': {e}", exc_info=True
@@ -354,9 +368,9 @@ class ResearcherV3_Final:
             """
         return f"""
             You are a senior system analyst. Your task is to analyze system data and identify optimization candidates.
-            
+
             {thinking_instructions}
-            
+
             {draft_section}
 
             Guardrail: NEVER suggest disabling components from this critical list: {json.dumps(CONFIG["CRITICAL_COMPONENTS_GUARDRAIL"])}.
@@ -381,7 +395,7 @@ class ResearcherV3_Final:
             """
         return f"""
             You are a senior security analyst specializing in privacy. Your task is to analyze network data to identify domains used **SPECIFICALLY for telemetry, user tracking, crash reporting, and advertising.**
-            
+
             {thinking_instructions}
 
             **IMPORTANT RULES:**
@@ -412,7 +426,7 @@ class ResearcherV3_Final:
             """
         return f"""
             You are a senior optimization engineer. Your task is to create rules for cleaning temporary files and caches. **Your ONLY task is to identify FOLDERS and FILES for deletion. DO NOT suggest uninstalling programs.**
-            
+
             {thinking_instructions}
 
             {draft_section}
@@ -448,7 +462,7 @@ class ResearcherV3_Final:
             """
         return f"""
             You are a meticulous fact-checker AI. Your task is to verify a single statement about a Windows system component.
-            
+
             {thinking_instructions}
 
             **STATEMENT TO VERIFY:**
@@ -507,7 +521,7 @@ class ResearcherV3_Final:
             ```json
             {json.dumps(data_for_prompt, indent=2, default=str)}
             ```
-            
+
             **YOUR TASK (reiteration):**
             Based on the connections you found during your thought process, generate a new list of "synthesis_notes".
             Each note should be an object with keys: `insight_id`, `type`, `primary_rule_id`, `related_rule_ids`, `comment_ru`.
@@ -787,11 +801,12 @@ if __name__ == "__main__":
     log_file = setup_logging(CONFIG["OUTPUT_PATH"], existing_log_file=log_file_arg)
     logger.info(f"Логи этого сеанса сохраняются в: {log_file}")
     logger.info(f"Текущая рабочая директория: {os.getcwd()}")
-    if sys.platform == "win32":
-        if not ResearcherV3_Final.is_admin():
-            ResearcherV3_Final.run_as_admin(log_file)
-            sys.exit(0)
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    if sys.platform == "win32" and not ResearcherV3_Final.is_admin():
+        ResearcherV3_Final.run_as_admin(log_file)
+        sys.exit(0)
+    # Политика цикла событий не задаётся: в Python 3.14 эти вызовы объявлены
+    # устаревшими, а скрипту хватает цикла по умолчанию — внешние команды он
+    # запускает синхронным `subprocess.run`, а не средствами asyncio.
     try:
         researcher_instance = ResearcherV3_Final()
         asyncio.run(researcher_instance.run())

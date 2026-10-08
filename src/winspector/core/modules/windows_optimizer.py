@@ -2,10 +2,12 @@
 """
 Сбор сведений о компонентах Windows и применение плана оптимизации.
 
-Все внешние команды запускаются списком аргументов при `shell=False`, а любой
-идентификатор перед подстановкой проверяется по строгому шаблону
-(`plan_validator.is_safe_identifier`). Даже если ответ модели окажется
-враждебным, он не сможет выйти за пределы имени службы.
+Службы управляются напрямую через API диспетчера служб (`service_control`):
+имя службы уходит в вызов аргументом, никакой команды из него не собирается.
+UWP-пакеты удаляются PowerShell — здесь команда запускается списком аргументов
+при `shell=False`, а идентификатор перед подстановкой проверяется по строгому
+шаблону (`plan_validator.is_safe_identifier`). Даже если ответ модели окажется
+враждебным, он не сможет выйти за пределы имени пакета.
 """
 
 from __future__ import annotations
@@ -17,14 +19,69 @@ import os
 import subprocess
 from collections.abc import Callable
 from datetime import datetime
-from typing import Any
+from typing import Any, NamedTuple
+
+import psutil
 
 from ..exceptions import RestorePointError
-from ..wmi_workers import get_services_worker
-from ..worker_pool import WorkerPool
 from .plan_validator import is_critical_service, is_critical_uwp, is_safe_identifier
+from .service_control import SUPPORTED_ACTIONS, ServiceControlError, apply_service_action
 
 logger = logging.getLogger(__name__)
+
+# Словарь psutil -> прежние значения WMI (`Win32_Service.StartMode`): база
+# знаний и промпты ИИ сложились вокруг них, менять лексику незачем.
+_START_MODE_NAMES = {"automatic": "Auto", "manual": "Manual", "disabled": "Disabled"}
+
+
+def collect_services() -> list[dict[str, Any]]:
+    """
+    Службы, пригодные для оптимизации.
+
+    Источник — `psutil.win_service_iter()`, а не WMI. Причин две. Скорость:
+    WQL-запрос `Win32_Service` в отдельном процессе занимал около трёх секунд,
+    psutil укладывается в триста миллисекунд без COM и пула процессов.
+    Точность: у части svchost-служб (`lsm`, `NetSetupSvc`) WMI возвращал
+    `PathName = NULL`, из-за чего фильтр по `svchost` их не отсекал и
+    системные службы попадали в кандидаты на отключение. psutil читает путь
+    напрямую из SCM.
+
+    Системные службы из System32 и хосты svchost исключаются: их изменение
+    рискованно, а объём данных для модели заметно вырастает.
+    """
+    services: list[dict[str, Any]] = []
+    for service in psutil.win_service_iter():
+        try:
+            info = service.as_dict()
+        except (psutil.Error, OSError):
+            # Нет доступа к конфигурации (например, WaaSMedicSvc) — такую
+            # службу всё равно нельзя было бы трогать.
+            continue
+
+        if info.get("start_type") == "disabled":
+            continue
+        path = info.get("binpath") or ""
+        if path and ("system32" in path.lower() or "svchost" in path.lower()):
+            continue
+
+        start_type = str(info.get("start_type") or "")
+        status = str(info.get("status") or "")
+        services.append(
+            {
+                "name": info["name"],
+                "display_name": info.get("display_name"),
+                "state": status.replace("_", " ").title(),
+                "start_mode": _START_MODE_NAMES.get(start_type, start_type.title()),
+                "path": path or None,
+            }
+        )
+    return services
+
+
+def existing_service_names() -> set[str]:
+    """Имена всех служб системы в нижнем регистре — без фильтрации."""
+    return {service.name().lower() for service in psutil.win_service_iter()}
+
 
 _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 _PS_BASE = [
@@ -45,17 +102,24 @@ def _ps_quote(value: str) -> str:
     return value.replace("'", "''")
 
 
+class ServiceOperation(NamedTuple):
+    """Действие над службой: выполняется через API SCM, а не командой."""
+
+    name: str
+    action: str
+
+
+# Что именно выполнять для пункта плана: вызов API для службы либо командная
+# строка PowerShell для UWP-пакета.
+PlannedCommand = ServiceOperation | list[str]
+
+
 class WindowsOptimizer:
     """Читает состав системы и выполняет одобренные действия."""
 
-    def __init__(
-        self,
-        optimization_rules: list[dict[str, Any]] | None = None,
-        worker_pool: WorkerPool | None = None,
-    ) -> None:
+    def __init__(self, optimization_rules: list[dict[str, Any]] | None = None) -> None:
         logger.info("Инициализация WindowsOptimizer...")
         self.rules = optimization_rules or []
-        self._worker_pool = worker_pool or WorkerPool()
         self._service_cache: set[str] | None = None
 
     # --- Сбор данных ------------------------------------------------------
@@ -65,7 +129,7 @@ class WindowsOptimizer:
         logger.info("Сбор данных о компонентах системы.")
 
         services_result, apps_result = await asyncio.gather(
-            self._worker_pool.run(get_services_worker),
+            self._collect_services(),
             self._collect_uwp_apps(),
             return_exceptions=True,
         )
@@ -73,10 +137,8 @@ class WindowsOptimizer:
         services: list[dict[str, Any]] = []
         if isinstance(services_result, BaseException):
             logger.error("Не удалось собрать службы: %s", services_result)
-        elif isinstance(services_result, dict):
-            if error := services_result.get("error"):
-                logger.error("Воркер WMI вернул ошибку: %s", error)
-            services = services_result.get("services") or []
+        elif isinstance(services_result, list):
+            services = services_result
 
         apps: list[dict[str, Any]] = []
         if isinstance(apps_result, BaseException):
@@ -86,6 +148,11 @@ class WindowsOptimizer:
 
         logger.info("Найдено служб: %d, UWP-приложений: %d.", len(services), len(apps))
         return {"services": services, "uwp_apps": apps}
+
+    @staticmethod
+    async def _collect_services() -> list[dict[str, Any]]:
+        """Опрос SCM синхронный, поэтому уходит в поток, а не блокирует цикл."""
+        return await asyncio.to_thread(collect_services)
 
     async def _collect_uwp_apps(self) -> list[dict[str, Any]]:
         """Собирает список устанавливаемых UWP-пакетов через PowerShell."""
@@ -123,18 +190,19 @@ class WindowsOptimizer:
         return apps
 
     async def _cache_existing_services(self) -> None:
-        """Кеширует имена существующих служб, чтобы не выполнять лишние команды."""
-        result = await self._run_powershell(
-            "Get-Service | Select-Object -ExpandProperty Name",
-            timeout=DEFAULT_COMMAND_TIMEOUT,
-        )
-        if result is None or result.returncode != 0:
-            logger.error("Не удалось получить список служб для кеширования.")
+        """
+        Кеширует имена существующих служб, чтобы не выполнять лишние команды.
+
+        Раньше список брался через `powershell Get-Service` — около секунды на
+        запуск интерпретатора ради нескольких сотен строк. Перечисление SCM
+        через psutil занимает единицы миллисекунд.
+        """
+        try:
+            self._service_cache = await asyncio.to_thread(existing_service_names)
+        except (psutil.Error, OSError) as exc:
+            logger.error("Не удалось получить список служб для кеширования: %s", exc)
             self._service_cache = set()
             return
-        self._service_cache = {
-            line.strip().lower() for line in result.stdout.splitlines() if line.strip()
-        }
         logger.debug("Закешировано служб: %d.", len(self._service_cache))
 
     # --- Выполнение плана -------------------------------------------------
@@ -160,7 +228,7 @@ class WindowsOptimizer:
         logger.info("Выполнение плана из %d действий.", len(plan))
         await self._cache_existing_services()
 
-        runnable: list[tuple[dict[str, Any], list[str]]] = []
+        runnable: list[tuple[dict[str, Any], PlannedCommand]] = []
         for item in plan:
             command = self._generate_command_for_action(item)
             if command is None:
@@ -201,9 +269,9 @@ class WindowsOptimizer:
         )
         return summary
 
-    def _generate_command_for_action(self, item: dict[str, Any]) -> list[str] | None:
+    def _generate_command_for_action(self, item: dict[str, Any]) -> PlannedCommand | None:
         """
-        Строит команду PowerShell для одного действия.
+        Определяет, что выполнить для одного пункта плана.
 
         Возвращает None, если действие нужно пропустить: неизвестный тип,
         небезопасный идентификатор, критический компонент или отсутствующая
@@ -240,20 +308,10 @@ class WindowsOptimizer:
         return None
 
     @staticmethod
-    def _service_command(item_id: str, action: str) -> list[str] | None:
-        name = _ps_quote(item_id)
-        if action == "disable":
-            script = (
-                f"Stop-Service -Name '{name}' -Force -ErrorAction SilentlyContinue; "
-                f"Set-Service -Name '{name}' -StartupType Disabled -ErrorAction Stop"
-            )
-        elif action == "set_manual":
-            script = f"Set-Service -Name '{name}' -StartupType Manual -ErrorAction Stop"
-        elif action == "stop":
-            script = f"Stop-Service -Name '{name}' -Force -ErrorAction Stop"
-        else:
+    def _service_command(item_id: str, action: str) -> ServiceOperation | None:
+        if action not in SUPPORTED_ACTIONS:
             return None
-        return [*_PS_BASE, script]
+        return ServiceOperation(item_id, action)
 
     @staticmethod
     def _uwp_command(item: dict[str, Any]) -> list[str] | None:
@@ -297,8 +355,13 @@ class WindowsOptimizer:
 
         return await asyncio.to_thread(_run)
 
-    async def _run_single_command(self, item: dict[str, Any], command: list[str]) -> dict[str, Any]:
-        """Выполняет одну команду и возвращает её результат."""
+    async def _run_single_command(
+        self, item: dict[str, Any], command: PlannedCommand
+    ) -> dict[str, Any]:
+        """Выполняет один пункт плана и возвращает его результат."""
+        if isinstance(command, ServiceOperation):
+            return await self._apply_service_operation(item, command)
+
         result = await self._run_process(command, timeout=DEFAULT_COMMAND_TIMEOUT)
 
         if result is None:
@@ -313,6 +376,25 @@ class WindowsOptimizer:
         error = result.stderr.strip() or f"PowerShell завершился с кодом {result.returncode}"
         logger.error("Ошибка действия для '%s': %s", item["id"], error)
         return {"status": "failed", "data": {"item": item, "error": error}}
+
+    @staticmethod
+    async def _apply_service_operation(
+        item: dict[str, Any], operation: ServiceOperation
+    ) -> dict[str, Any]:
+        """
+        Действие над службой через API SCM.
+
+        Ожидание остановки службы — блокирующий опрос, поэтому вызов уходит
+        в поток; сами вызовы API занимают миллисекунды.
+        """
+        try:
+            await asyncio.to_thread(apply_service_action, operation.name, operation.action)
+        except ServiceControlError as exc:
+            logger.error("Ошибка действия для '%s': %s", item["id"], exc)
+            return {"status": "failed", "data": {"item": item, "error": str(exc)}}
+
+        logger.info("Выполнено '%s' для '%s'.", operation.action, operation.name)
+        return {"status": "completed", "data": item}
 
     # --- Точка восстановления --------------------------------------------
 

@@ -20,7 +20,7 @@ from typing import NoReturn
 # --- 1. Константы и флаги ---
 
 IS_FROZEN = getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS")
-MIN_PYTHON_VERSION = (3, 10)
+MIN_PYTHON_VERSION = (3, 12)
 
 
 # --- 2. Функции проверки и аварийного логирования ---
