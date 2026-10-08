@@ -4,7 +4,7 @@
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./assets/logo.png"/>
+    <source media="(prefers-color-scheme: dark)" srcset="./assets/logo-dark.png"/>
     <img src="./assets/logo-light.png" alt="WinSpector Pro" width="420"/>
   </picture>
 </p>

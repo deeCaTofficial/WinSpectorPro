@@ -5,7 +5,7 @@
 
 - assets/app.ico — значок окна и EXE: 16–256 px; до 24 px включительно
   берётся упрощённая отрисовка logo-small.svg, иначе штрихи слишком тонкие.
-- assets/logo.png и assets/logo-light.png — логотип с названием для
+- assets/logo-dark.png и assets/logo-light.png — логотип с названием для
   README под тёмную и светлую тему GitHub.
 """
 
@@ -28,7 +28,7 @@ SMALL_UP_TO = 24
 # Логотип с названием: значок, «WinSpector» и акцентное «Pro».
 WORDMARK_HEIGHT = 320
 WORDMARK_THEMES = {
-    "logo.png": ("#E6E9EF", "#79A8FF"),  # тёмная тема
+    "logo-dark.png": ("#E6E9EF", "#79A8FF"),  # тёмная тема
     "logo-light.png": ("#1A1F29", "#2F6FEB"),  # светлая тема
 }
 
