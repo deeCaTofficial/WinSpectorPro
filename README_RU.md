@@ -223,7 +223,7 @@ copy .env.example .env    # необязательно: GEMINI_API_KEY для р
 
 - [Руководство пользователя](./docs/USER_GUIDE_RU.md) · [User guide](./docs/USER_GUIDE.md)
 - [Архитектура проекта](./docs/ARCHITECTURE.md)
-- [Участие в разработке](./CONTRIBUTING.md)
+- [Участие в разработке](./CONTRIBUTING_RU.md)
 - [История изменений](./CHANGELOG.md) (на английском) и [Релизы](https://github.com/deeCaTofficial/WinSpectorPro/releases)
 
 ## Дорожная карта
@@ -247,7 +247,7 @@ copy .env.example .env    # необязательно: GEMINI_API_KEY для р
 
 ## Участие в разработке
 
-Сообщения об ошибках, идеи и pull request'ы приветствуются — см. [CONTRIBUTING.md](./CONTRIBUTING.md).
+Сообщения об ошибках, идеи и pull request'ы приветствуются — см. [CONTRIBUTING_RU.md](./CONTRIBUTING_RU.md).
 Новые правила очистки должны соответствовать требованиям из этого руководства: только данные,
 которые программы восстанавливают сами.
 

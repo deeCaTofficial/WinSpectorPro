@@ -1,196 +1,238 @@
-# Руководство по участию в разработке WinSpector Pro
+<p align="center">
+  <img src="https://img.shields.io/badge/-English-1f6feb?style=for-the-badge" alt="English">
+  <a href="./CONTRIBUTING_RU.md"><img src="https://img.shields.io/badge/-%D0%A0%D1%83%D1%81%D1%81%D0%BA%D0%B8%D0%B9-30363d?style=for-the-badge" alt="Русский"></a>
+</p>
 
-> *English:* this guide is in Russian, but issues and pull requests in English are welcome.
-> Quick setup: `python -m venv .venv`, `.venv\Scripts\activate`,
-> `pip install -r requirements-dev.txt`, then `pytest` and `ruff check .`. Run the app with
-> `python src/main.py`; build the EXE with `python scripts/build.py`.
+# Contributing to WinSpector Pro
 
-🎉 **Спасибо за ваш интерес к развитию WinSpector Pro!**
+Thank you for wanting to help! Every contribution is welcome: a bug report, an idea, a typo fix,
+or new code. This guide walks you through setting up the environment and sending your first
+pull request. Issues and pull requests can be written in English or Russian.
 
-Мы рады каждому вкладу, будь то исправление ошибки, добавление новой функции или улучшение документации. Это руководство поможет вам быстро настроить окружение и сделать ваш первый вклад в проект.
+## Contents
 
-## Содержание
-- [🤝 Кодекс поведения](#-кодекс-поведения-code-of-conduct)
-- [🚀 Способы внести вклад](#-способы-внести-вклад)
-- [🛠️ Настройка окружения для разработки](#️-настройка-окружения-для-разработки)
-- [📦 Работа с зависимостями](#-работа-с-зависимостями)
-- [🌱 Процесс работы над кодом и Pull Request](#-процесс-работы-над-кодом-и-pull-request)
-- [🧹 Добавление правил очистки](#-добавление-правил-очистки)
-- [🔬 Развитие Базы Знаний с помощью `researcher.py`](#-развитие-базы-знаний-с-помощью-researcherpy)
-- [🚢 Сборка и выпуск релиза](#-сборка-и-выпуск-релиза)
+- [Code of Conduct](#code-of-conduct)
+- [Ways to contribute](#ways-to-contribute)
+- [Reporting security issues](#reporting-security-issues)
+- [Setting up the environment](#setting-up-the-environment)
+- [Dependencies](#dependencies)
+- [Code and pull requests](#code-and-pull-requests)
+- [Interface text in two languages](#interface-text-in-two-languages)
+- [Cleanup rules](#cleanup-rules)
+- [Growing the knowledge base with researcher.py](#growing-the-knowledge-base-with-researcherpy)
+- [Building and releasing](#building-and-releasing)
 
-## 🤝 Кодекс поведения (Code of Conduct)
+## Code of Conduct
 
-Мы стремимся создать дружелюбное и открытое сообщество. Пожалуйста, ознакомьтесь с нашим **[Кодексом поведения](./CODE_OF_CONDUCT_RU.md)** и следуйте ему во всех взаимодействиях в рамках проекта.
+By taking part in this project you agree to follow its [Code of Conduct](./CODE_OF_CONDUCT.md).
 
-## 🚀 Способы внести вклад
+## Ways to contribute
 
-Мы приветствуем самые разные виды вклада, включая, но не ограничиваясь:
+- **Report a bug:** [open an issue](https://github.com/deeCaTofficial/WinSpectorPro/issues/new/choose)
+  using the "🐞 Сообщение об ошибке" (bug report) template.
+- **Suggest an idea:** [open an issue](https://github.com/deeCaTofficial/WinSpectorPro/issues/new/choose)
+  using the "✨ Предложение функции" (feature request) template.
+- **Improve the docs:** spotted a typo or an unclear passage? Propose a fix.
+- **Write code:** fix a bug or implement a feature. For larger changes, open an issue to discuss
+  the idea first, so you don't spend time on something that won't be merged.
 
--   **🐞 Сообщения об ошибках:** Если вы нашли баг, пожалуйста, [создайте Issue](https://github.com/deeCaTofficial/WinSpectorPro/issues/new/choose), выбрав шаблон «🐞 Сообщение об ошибке».
--   **💡 Предложения по улучшению:** Есть идея для новой функции? [Создайте Issue](https://github.com/deeCaTofficial/WinSpectorPro/issues/new/choose), выбрав шаблон «✨ Предложение функции».
--   **📝 Документация:** Увидели опечатку или считаете, что какой-то раздел можно объяснить лучше? Предложите изменения!
--   **💻 Написание кода:** Исправление ошибок или реализация новых функций.
+## Reporting security issues
 
-## 🛠️ Настройка окружения для разработки
+The app runs with administrator rights, so please don't report vulnerabilities in public
+issues. Report them privately instead: **Security** tab → **Report a vulnerability**.
 
-Чтобы начать работу над кодом, вам необходимо настроить локальное окружение.
+## Setting up the environment
 
-> **Требования:** Windows 10/11 и Python **3.12 или новее** (основная версия разработки — 3.14). Приложение работает только под Windows: оно обращается к реестру, службам и WMI.
+> **Requirements:** Windows 10/11 and Python **3.12 or newer** (3.14 is the main development
+> version). The app runs on Windows only: it works with the registry, services, and WMI.
 
-1.  **Форк и клон:**
-    -   Сделайте форк репозитория **deeCaTofficial/WinSpectorPro** на GitHub.
-    -   Клонируйте **ваш форк** на локальную машину:
-        ```bash
-        git clone https://github.com/ВАШ_НИКНЕЙМ/WinSpectorPro.git
-        cd WinSpectorPro
-        ```
+1. **Fork and clone.** Fork the repository and clone **your fork**:
+   ```bash
+   git clone https://github.com/YOUR_USERNAME/WinSpectorPro.git
+   cd WinSpectorPro
+   ```
 
-2.  **Виртуальное окружение (обязательно):**
-    ```bash
-    # Создаем окружение в папке .venv и активируем его
-    python -m venv .venv
-    .venv\Scripts\activate
-    ```
+2. **Virtual environment:**
+   ```bash
+   python -m venv .venv
+   .venv\Scripts\activate
+   ```
 
-3.  **Установка зависимостей:**
-    Установите все пакеты, необходимые для разработки, тестирования и сборки.
-    ```bash
-    pip install -r requirements-dev.txt
-    ```
-    *Этот файл содержит все зависимости из `requirements.txt` плюс инструменты для разработки.*
+3. **Dependencies.** `requirements-dev.txt` includes everything from `requirements.txt` plus the
+   tools for development, testing, and building:
+   ```bash
+   pip install -r requirements-dev.txt
+   ```
 
-4.  **Ключ Gemini (по желанию):**
-    Без ключа программа работает в режиме без ИИ — для большинства задач этого достаточно. Ключ нужен, только если вы меняете или проверяете ИИ-режим.
-    -   Скопируйте файл `.env.example` и переименуйте копию в `.env`.
-    -   Откройте `.env` и вставьте ваш ключ: `GEMINI_API_KEY="ВАШ_API_КЛЮЧ"`
-    *Файл `.env` уже добавлен в `.gitignore`, так что ваш ключ останется в безопасности.*
+4. **Gemini key (optional).** Without a key the app runs in its no-AI mode, which is enough for
+   most work. You only need a key to change or test the AI mode. Copy `.env.example` to `.env`
+   and add your key: `GEMINI_API_KEY="YOUR_KEY"`. `.env` is already in `.gitignore` and won't be
+   committed.
 
-5.  **Проверка окружения:**
-    -   Запустите приложение, чтобы убедиться, что все работает:
-        ```bash
-        python src/main.py
-        ```
-    -   Запустите тесты:
-        ```bash
-        pytest
-        ```
-        Тесты с маркером `windows` читают настоящую систему (WMI, реестр) и ничего в ней не меняют. Для быстрого прогона без них: `pytest -m "not slow and not windows"`.
-    -   Подключите проверки перед коммитом:
-        ```bash
-        pre-commit install
-        ```
+5. **Check that it works.** Run the app and the tests:
+   ```bash
+   python src/main.py
+   pytest
+   ```
+   Tests marked `windows` read the real system (WMI, registry) and never change it. For a quick
+   run without them: `pytest -m "not slow and not windows"`.
 
-Теперь вы готовы к работе!
+6. **Pre-commit checks.** Install the pre-commit hooks — they run `ruff check`, `ruff format`,
+   the fast tests, and strip trailing whitespace:
+   ```bash
+   pre-commit install
+   ```
 
-## 📦 Работа с зависимостями
+The app's internals are described in [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
 
-**Важно:** Не редактируйте `requirements.txt` и `requirements-dev.txt` вручную! Эти файлы генерируются автоматически.
+## Dependencies
 
-Если вам нужно добавить/обновить/удалить зависимость:
-1.  Установите `pip-tools`, если его ещё нет: `pip install pip-tools`.
-2.  Внесите изменения в `requirements.in` (для приложения) или `requirements-dev.in` (для разработки).
-3.  Пересоберите **оба** файла — `pip-compile` обновляет только тот `.txt`, который указан в команде:
-    ```bash
-    pip-compile --strip-extras --output-file=requirements.txt requirements.in
-    pip-compile --strip-extras --output-file=requirements-dev.txt requirements-dev.in
-    ```
-    *Чтобы поднять все пакеты до последних версий, добавьте `--upgrade`.*
-4.  Закоммитьте изменения во всех четырёх файлах (`.in` и `.txt`).
+Don't edit `requirements.txt` or `requirements-dev.txt` by hand: they are generated.
 
-## 🌱 Процесс работы над кодом и Pull Request
+To add, update, or remove a dependency:
 
-Мы придерживаемся простого и эффективного рабочего процесса.
+1. Install `pip-tools` if you don't have it: `pip install pip-tools`.
+2. Edit `requirements.in` (for the app) or `requirements-dev.in` (for development).
+3. Regenerate **both** files — `pip-compile` only updates the `.txt` named in the command:
+   ```bash
+   pip-compile --no-index --strip-extras --output-file=requirements.txt requirements.in
+   pip-compile --no-index --strip-extras --output-file=requirements-dev.txt requirements-dev.in
+   ```
+   Add `--upgrade` to bump all packages to their latest versions.
+4. Commit all four files (`.in` and `.txt`).
 
-#### Шаг 1: Создание ветки
+## Code and pull requests
 
-Для каждой новой задачи создавайте отдельную ветку от `main`. Имя ветки должно быть информативным и следовать формату `тип/краткое-описание`.
+### 1. Branch
 
--   **Типы веток:** `feature/`, `fix/`, `docs/`, `refactor/`, `test/`.
--   **Пример:**
-    ```bash
-    # Для новой фичи
-    git checkout -b feature/add-report-export
+Create a separate branch from `main` for each task, named `type/short-description`.
+Types: `feature/`, `fix/`, `docs/`, `refactor/`, `test/`.
 
-    # Для исправления бага
-    git checkout -b fix/crash-on-startup
-    ```
+```bash
+git checkout -b fix/crash-on-startup
+```
 
-#### Шаг 2: Написание кода и коммиты
+### 2. Code and commits
 
--   **Стиль кода:** Проект использует `ruff` для линтинга и форматирования. Перед коммитом убедитесь, что ваш код соответствует стандартам:
-    ```bash
-    # Проверить код на ошибки
-    ruff check .
-    # Автоматически отформатировать код
-    ruff format .
-    ```
--   **Коммиты:** Мы придерживаемся стандарта [Conventional Commits](https://www.conventionalcommits.org/): по таким сообщениям легко читать историю и собирать `CHANGELOG.md` (он ведётся вручную).
-    -   **Примеры сообщений:** `feat(gui): add preview window`, `fix(core): prevent race condition in analyzer`.
+- **Code style.** The project uses `ruff` for linting and formatting:
+  ```bash
+  ruff check .
+  ruff format .
+  ```
+- **Tests.** Cover new behavior and bug fixes with tests in `tests/`.
+- **Commit messages** follow [Conventional Commits](https://www.conventionalcommits.org/): this
+  keeps the history readable and makes `CHANGELOG.md` (maintained by hand) easier to write.
+  Examples: `feat(gui): add preview window`, `fix(core): prevent race condition in analyzer`.
 
-#### Шаг 3: Создание Pull Request
+### 3. Pull request
 
-Когда ваша работа готова, отправьте ветку в ваш форк и создайте Pull Request в основной репозиторий.
+Push the branch to your fork and open a pull request against the main repository.
 
--   **Название PR:** Должно быть ясным и кратким.
--   **Описание PR:** Четко опишите, **что** вы изменили и **зачем**. Если ваш PR закрывает какое-либо Issue, укажите это (например, `Closes #123`).
--   **Проверки CI:** На каждый PR GitHub Actions запускает `ruff` и тесты на Python 3.12, 3.13 и 3.14. PR принимается, когда все проверки зелёные.
--   **Документация:** Если изменение заметно пользователю, добавьте строку в раздел `Unreleased` файла [`CHANGELOG.md`](./CHANGELOG.md). README и руководство пользователя существуют на двух языках — правьте обе версии (`README.md` и `README_RU.md`, `docs/USER_GUIDE.md` и `docs/USER_GUIDE_RU.md`), чтобы они не расходились.
+- **Title** — short and to the point.
+- **Description** — **what** changed and **why**. If the PR closes an issue, say so:
+  `Closes #123`.
+- **CI checks.** GitHub Actions runs `ruff check`, `ruff format --check`, and the tests on
+  Python 3.12, 3.13, and 3.14 for every PR. A PR is merged once all checks are green.
+- **Documentation.** If the change is visible to users, add a line to the `Unreleased` section
+  of [`CHANGELOG.md`](./CHANGELOG.md). The README and the user guide exist in two languages —
+  update both versions (`README.md` and `README_RU.md`, `docs/USER_GUIDE.md` and
+  `docs/USER_GUIDE_RU.md`). If the look of a window changed, update the screenshots as described
+  in [`docs/media/README.md`](./docs/media/README.md).
 
-## 🧹 Добавление правил очистки
+## Interface text in two languages
 
-Правила очистки лежат в `src/winspector/data/knowledge_base/cleanup_rules.yaml`. Ошибка здесь стоит пользователю данных, поэтому к ним особые требования:
+The interface is available in Russian and English. Pass every user-visible string in both
+languages at once: in windows use `self._t("Русский текст", "English text")`, elsewhere use
+`localize(language, russian, english)` from `winspector/gui/language.py`. A string in only one
+language shows up untranslated for users of the other.
 
-1.  **Только восстановимое.** Правило описывает кеш, журнал, временные файлы или дампы — то, что программа пересоздаст сама. Настройки, сохранения, базы данных, история переписки и сессии входа сюда не относятся.
-2.  **Никогда весь профиль Chromium/CEF.** Папки вроде `CefCache`, `EBWebView`, `BrowserCache` часто оказываются полным профилем с cookies и входом в аккаунт. Указывайте только каталоги кеша внутри: `Cache`, `Code Cache`, `GPUCache`, `GrShaderCache`, `component_crx_cache`.
-3.  **Проверьте содержимое.** Перед добавлением посмотрите, что реально лежит в каталоге, и приложите к PR вывод сухого прогона — он ничего не удаляет:
-    ```bash
-    python scripts/audit_cleanup.py --out audit.md
-    ```
-4.  **Выберите `safety`.** `high` очищается автоматически, в том числе без ИИ; `medium` — только если ИИ одобрит. Если восстановление дорогое (перекачать гигабайты, переиндексировать проект) или не подтверждено — это `medium`.
-5.  **Используйте ограничения:**
-    -   `min_age_hours` — не трогать свежие файлы (журналы — 168, кеш шейдеров — 720);
-    -   `requires_closed` — отложить категорию, пока запущена программа (`["chrome.exe"]`);
-    -   `skip_if_busy` и `busy_siblings` — для приложений с заранее неизвестным именем процесса;
-    -   `atomic_subdirs` — для временных папок: подкаталог в работе не трогается целиком;
-    -   `*` в пути подставляет профиль или игру (`User Data\*\Cache`), но не может быть самой целью.
+## Cleanup rules
 
-Тест `tests/test_knowledge_base.py` проверяет правила автоматически: имя цели правила `high` должно выглядеть как кеш или журнал.
+Cleanup rules live in `src/winspector/data/knowledge_base/cleanup_rules.yaml`. A mistake here
+costs users their data, so these rules have strict requirements:
 
-## 🔬 Развитие Базы Знаний с помощью `researcher.py`
+1. **Only what can be recreated.** A rule targets caches, logs, temporary files, or dumps —
+   things the program rebuilds on its own. Settings, saves, databases, chat history, and login
+   sessions do not belong here.
+2. **Never a whole Chromium/CEF profile.** Folders like `CefCache`, `EBWebView`, or
+   `BrowserCache` often turn out to be a full profile with cookies and a signed-in account.
+   Target only the cache folders inside: `Cache`, `Code Cache`, `GPUCache`, `GrShaderCache`,
+   `component_crx_cache`.
+3. **Check the contents.** Before adding a rule, look at what the folder actually contains, and
+   attach the output of a dry run to the PR — it deletes nothing:
+   ```bash
+   python scripts/audit_cleanup.py --out audit.md
+   ```
+4. **Pick `safety`.** `high` is cleaned automatically, including without AI; `medium` only when
+   the AI approves it. If recovery is expensive (re-downloading gigabytes, re-indexing a project)
+   or unconfirmed, use `medium`.
+5. **Use the constraints:**
+   - `min_age_hours` — leave recent files alone (logs: 168, shader caches: 720);
+   - `requires_closed` — postpone the category while a program is running (`["chrome.exe"]`);
+   - `skip_if_busy` and `busy_siblings` — for apps whose process name isn't known in advance;
+   - `atomic_subdirs` — for temp folders: a subfolder in use is left untouched as a whole;
+   - `*` in a path stands for a profile or a game (`User Data\*\Cache`) but can't be the target
+     itself.
 
-Правила программы хранятся в базе знаний (`src/winspector/data/knowledge_base/`). Черновики новых правил помогает готовить внутренний инструмент `scripts/researcher.py`.
+`tests/test_knowledge_base.py` checks the rules automatically: the target of a `high` rule must
+look like a cache or a log.
 
-**Что это?** Скрипт собирает сведения о системе, просит Gemini предложить по ним правила оптимизации и очистки, а затем перепроверяет каждое предложение отдельным запросом. Для работы нужен ключ `GEMINI_API_KEY` в `.env`; права администратора скрипт запрашивает сам.
+## Growing the knowledge base with researcher.py
+
+The app's rules are stored in the knowledge base (`src/winspector/data/knowledge_base/`). The
+internal tool `scripts/researcher.py` helps draft new rules: it collects information about the
+system, asks Gemini to propose optimization and cleanup rules based on it, and then re-checks
+every proposal with a separate request. It needs `GEMINI_API_KEY` in `.env`; it asks for
+administrator rights on its own.
 
 > [!WARNING]
-> `researcher.py` отправляет в Google Gemini сведения о вашей системе: списки служб, автозагрузки и задач планировщика, файл hosts, текущие сетевые подключения с именами процессов, установленные программы и пути их установки. Если это нежелательно, запускайте его на виртуальной машине.
+> `researcher.py` sends information about your system to Google Gemini: the lists of services,
+> startup items, and scheduled tasks, the hosts file, current network connections with process
+> names, and installed programs with their install paths. If you'd rather not share this, run it
+> in a virtual machine.
 
-**Как помочь?**
-1.  Запустите `researcher.py` на своей машине (или на виртуальной машине с интересным набором ПО):
-    ```bash
-    python scripts/researcher.py
-    ```
-2.  Дождитесь завершения (это может занять много времени).
-3.  Изучите сгенерированные YAML-файлы в `tests/upload/`.
-4.  Выберите наиболее качественные и универсальные правила и предложите их для добавления в основную "Базу Знаний" через Pull Request. Правила очистки, сгенерированные ИИ, проверяйте по требованиям раздела выше: прошлые версии базы содержали, например, папку загрузок и карантин Defender.
-## 🚢 Сборка и выпуск релиза
+How to help:
 
-Собрать EXE можно в том же окружении:
+1. Run the script on your machine or in a virtual machine with an interesting set of programs:
+   ```bash
+   python scripts/researcher.py
+   ```
+2. Wait for it to finish — this can take a long time.
+3. Review the generated YAML files in `tests/upload/`.
+4. Pick high-quality, broadly useful rules and propose them in a pull request. Check AI-suggested
+   cleanup rules against the [Cleanup rules](#cleanup-rules) requirements: earlier versions of the
+   knowledge base included, for example, the Downloads folder and Defender's quarantine.
+
+Rule descriptions in the knowledge base are written in Russian (`description_ru`).
+
+## Building and releasing
+
+You can build the EXE in the same environment:
 
 ```bash
 python scripts/build.py
 ```
 
-Результат — `dist/WinSpectorPro.exe` и файл с его SHA-256 `dist/WinSpectorPro.exe.sha256`. Флаги: `--debug` — консольная версия для отладки, `--archive` — дополнительно ZIP с EXE (для релизов не используется), `--no-clean` — оставить временные файлы сборки.
+The output is `dist/WinSpectorPro.exe` and its SHA-256 in `dist/WinSpectorPro.exe.sha256`.
+Flags: `--debug` builds a console version for debugging, `--archive` also creates a ZIP with the
+EXE (not used for releases), `--no-clean` keeps temporary build files.
 
-Выпуск версии (для сопровождающих):
+Releasing a version (for maintainers):
 
-1.  Обновите версию в `src/winspector/__init__.py` (`__version__`, её читает сборка) и в `pyproject.toml`.
-2.  В `CHANGELOG.md` замените `Unreleased` на дату и добавьте ссылку сравнения версий.
-3.  Убедитесь, что проходят `pytest` и `ruff check .`. Если PyInstaller ставился или обновлялся, соберите свой загрузчик: `python scripts/build_bootloader.py` (нужны Microsoft C++ Build Tools). Стандартный загрузчик PyInstaller часть антивирусов помечает у любой программы, собранной с ним; собранный у себя такие обобщённые сигнатуры не задевает. Затем соберите EXE: `python scripts/build.py`.
-4.  Подготовьте описание релиза по черновику в `docs/releases/` (например, [`docs/releases/v1.1.0.md`](./docs/releases/v1.1.0.md)): вставьте хеш из `dist/WinSpectorPro.exe.sha256`.
-5.  По желанию загрузите EXE в [VirusTotal](https://www.virustotal.com/) и добавьте ссылку на отчёт. Не загружали — удалите строку VirusTotal, а не оставляйте заглушку.
-6.  Создайте релиз с тегом `vX.Y.Z` и приложите **оба** файла: `WinSpectorPro.exe` и `WinSpectorPro.exe.sha256`.
+1. Bump the version in `src/winspector/__init__.py` (`__version__`, read by the build) and in
+   `pyproject.toml`.
+2. In `CHANGELOG.md`, replace `Unreleased` with the date and add a version comparison link.
+3. Make sure `pytest` and `ruff check .` pass. If PyInstaller was installed or updated, build your
+   own bootloader: `python scripts/build_bootloader.py` (requires Microsoft C++ Build Tools).
+   Some antivirus engines flag PyInstaller's stock bootloader in any program built with it;
+   a locally built one doesn't match those generic signatures. Then build the EXE:
+   `python scripts/build.py`.
+4. Prepare the release notes from the draft in `docs/releases/` (for example,
+   [`docs/releases/v1.1.0.md`](./docs/releases/v1.1.0.md)) and insert the hash from
+   `dist/WinSpectorPro.exe.sha256`.
+5. Optionally upload the EXE to [VirusTotal](https://www.virustotal.com/) and add a link to the
+   report. If you didn't, delete the VirusTotal line instead of leaving a placeholder.
+6. Create a release tagged `vX.Y.Z` and attach **both** files: `WinSpectorPro.exe` and
+   `WinSpectorPro.exe.sha256`.
 
-EXE не подписан цифровой подписью. Пока подписи нет, не пишите в описаниях релиза и документации обратного.
+The EXE is not digitally signed. Until it is, don't claim otherwise in release notes or docs.

@@ -221,7 +221,7 @@ copy .env.example .env    # optional: GEMINI_API_KEY for development
 
 - [User guide](./docs/USER_GUIDE.md) · [Руководство пользователя](./docs/USER_GUIDE_RU.md)
 - [Architecture](./docs/ARCHITECTURE.md) (in Russian)
-- [Contributing](./CONTRIBUTING.md) (in Russian; issues and pull requests in English are welcome)
+- [Contributing](./CONTRIBUTING.md)
 - [Changelog](./CHANGELOG.md) and [Releases](https://github.com/deeCaTofficial/WinSpectorPro/releases)
 
 ## Roadmap
