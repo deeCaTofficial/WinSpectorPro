@@ -543,4 +543,5 @@ class TestAgainstRealSystem:
         report = ls.scan_leftovers()
         assert _time.perf_counter() - started < 30
         for candidate in report.candidates:
-            assert Path(candidate.path).is_dir(), "сканер ничего не переносит и не удаляет"
+            # Кандидат может быть и файлом: брошенный .msi в C:\Windows\Installer.
+            assert Path(candidate.path).exists(), "сканер ничего не переносит и не удаляет"
