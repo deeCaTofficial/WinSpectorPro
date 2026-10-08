@@ -1,5 +1,6 @@
 <p align="center">
-  <b>English</b> | <a href="./README_RU.md">Русский</a>
+  <img src="https://img.shields.io/badge/-English-1f6feb?style=for-the-badge" alt="English">
+  <a href="./README_RU.md"><img src="https://img.shields.io/badge/-%D0%A0%D1%83%D1%81%D1%81%D0%BA%D0%B8%D0%B9-30363d?style=for-the-badge" alt="Русский"></a>
 </p>
 
 <p align="center">
