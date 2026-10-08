@@ -27,6 +27,7 @@
   <img src="https://img.shields.io/badge/portable-%D0%BE%D0%B4%D0%B8%D0%BD%20EXE-blueviolet" alt="Портативный: один EXE">
   <img src="https://img.shields.io/badge/%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D0%B0%D0%B5%D1%82%20%D0%B1%D0%B5%D0%B7%20%D0%98%D0%98-%D0%B4%D0%B0-success" alt="Работает без ИИ">
   <a href="https://github.com/deeCaTofficial/WinSpectorPro/releases/latest"><img src="https://img.shields.io/github/v/release/deeCaTofficial/WinSpectorPro?display_name=tag&label=release" alt="Последний релиз"></a>
+  <a href="https://github.com/deeCaTofficial/WinSpectorPro/releases"><img src="https://img.shields.io/github/downloads/deeCaTofficial/WinSpectorPro/total?label=downloads&color=green" alt="Скачивания"></a>
   <a href="https://github.com/deeCaTofficial/WinSpectorPro/actions/workflows/ci.yml"><img src="https://github.com/deeCaTofficial/WinSpectorPro/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
